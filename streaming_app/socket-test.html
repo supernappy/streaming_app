@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket Connection Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket Connection Test</h1>
+    <div id="status">Testing...</div>
+    <div id="logs"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message) {
+            console.log(message);
+            logsDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+
+        async function testSocketConnection() {
+            try {
+                // Step 1: Login to get token
+                log('1️⃣ Logging in to get auth token...');
+                const loginResponse = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'wale@example.com',
+                        password: 'password123'
+                    })
+                });
+
+                if (!loginResponse.ok) {
+                    throw new Error(`Login failed: ${loginResponse.status}`);
+                }
+
+                const loginData = await loginResponse.json();
+                const token = loginData.token;
+                log(`✅ Login successful, token: ${token ? 'YES' : 'NO'}`);
+
+                // Step 2: Test socket connection
+                log('2️⃣ Testing socket connection...');
+                const socket = io('http://localhost:3001', {
+                    auth: {
+                        token: token
+                    },
+                    transports: ['websocket', 'polling'],
+                    timeout: 5000
+                });
+
+                socket.on('connect', () => {
+                    log('✅ Socket connected successfully!');
+                    statusDiv.innerHTML = '✅ Connected';
+                    
+                    // Test room joining
+                    log('3️⃣ Testing room join...');
+                    socket.emit('join-room', '5');
+                    
+                    setTimeout(() => {
+                        log('4️⃣ Testing track change...');
+                        socket.emit('host-change-track', { trackId: 14, autoPlay: true });
+                    }, 1000);
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ Socket connection failed: ${error.message}`);
+                    statusDiv.innerHTML = '❌ Connection Failed';
+                });
+
+                socket.on('sync-track-change', (data) => {
+                    log(`🎵 Received track change event: ${JSON.stringify(data)}`);
+                    statusDiv.innerHTML = '✅ Track Change Working';
+                });
+
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`);
+                statusDiv.innerHTML = '❌ Test Failed';
+            }
+        }
+
+        // Start test
+        testSocketConnection();
+    </script>
+</body>
+</html>

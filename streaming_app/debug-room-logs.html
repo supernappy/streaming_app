@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Room Logs</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .log { margin: 5px 0; padding: 5px; background: #f0f0f0; }
+        .error { background: #ffe6e6; }
+        .success { background: #e6ffe6; }
+        .warning { background: #fff3e6; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Room Debug Tool</h1>
+    <p>Open browser console and navigate to room 5 to see debug logs</p>
+    
+    <div>
+        <button onclick="openRoom()">Open Room 5</button>
+        <button onclick="login()">Login First</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div id="logs"></div>
+    
+    <h2>Instructions:</h2>
+    <ol>
+        <li>Click "Login First" if not already logged in</li>
+        <li>Click "Open Room 5" to navigate to the room</li>
+        <li>Check browser console for debug logs</li>
+        <li>Try clicking on tracks in the track queue</li>
+        <li>Look for these key debug messages:
+            <ul>
+                <li>🎵 ROOM: Rendering SynchronizedRoomAudioPlayer</li>
+                <li>🔌 SOCKET STATUS</li>
+                <li>🏠 JOIN ROOM</li>
+                <li>🖱️ TRACK CLICK</li>
+                <li>🎵 HOST CHANGE TRACK</li>
+            </ul>
+        </li>
+    </ol>
+    
+    <script>
+        function openRoom() {
+            window.open('http://localhost:3000/room/5', '_blank');
+        }
+        
+        function login() {
+            window.open('http://localhost:3000/login', '_blank');
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            console.clear();
+        }
+        
+        function addLog(message, type = 'log') {
+            const logs = document.getElementById('logs');
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('🎵')) {
+                addLog(args.join(' '), 'success');
+            }
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('🚫')) {
+                addLog(args.join(' '), 'error');
+            }
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLog(args.join(' '), 'warning');
+        };
+    </script>
+</body>
+</html>

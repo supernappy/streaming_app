@@ -1,0 +1,42 @@
+{
+  "name": "openstream",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenStream - Full-stack audio streaming platform",
+  "scripts": {
+    "start": "npm run start:dev",
+    "start:dev": "./start-dev.sh",
+    "start:prod": "./start.sh",
+    "stop": "./stop-dev.sh",
+    "build": "npm run build:client",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "test": "npm run test:client && npm run test:server",
+    "test:client": "cd client && npm test",
+    "test:server": "cd server && npm test",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ../mobile && npm install",
+    "dev:client": "cd client && npm start",
+    "dev:server": "cd server && npm run dev",
+    "migrate": "cd server && npm run migrate",
+    "seed": "cd server && npm run seed"
+  },
+  "workspaces": [
+    "client",
+    "server",
+    "mobile"
+  ],
+  "keywords": [
+    "audio",
+    "streaming",
+    "music",
+    "platform",
+    "nodejs",
+    "react"
+  ],
+  "author": "OpenStream Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

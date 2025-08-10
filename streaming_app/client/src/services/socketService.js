@@ -1,0 +1,238 @@
+import { io } from 'socket.io-client';
+
+class SocketService {
+  constructor() {
+    this.socket = null;
+    this.isConnected = false;
+    this.currentRoom = null;
+    this.isHost = false;
+    this.listeners = new Map();
+  }
+
+  connect(token) {
+    if (this.socket && this.isConnected) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        this.socket = io(process.env.REACT_APP_SERVER_URL || 'http://localhost:5002', {
+          auth: {
+            token: token
+          },
+          transports: ['websocket', 'polling']
+        });
+
+        this.socket.on('connect', () => {
+          console.log('✅ Connected to WebSocket server');
+          this.isConnected = true;
+          resolve();
+        });
+
+        this.socket.on('disconnect', () => {
+          console.log('❌ Disconnected from WebSocket server');
+          this.isConnected = false;
+        });
+
+        this.socket.on('connect_error', (error) => {
+          console.error('❌ WebSocket connection error:', error);
+          reject(error);
+        });
+
+        this.socket.on('error', (error) => {
+          console.error('❌ WebSocket error:', error);
+        });
+
+        // Set up room event listeners
+        this.setupRoomListeners();
+
+      } catch (error) {
+        console.error('❌ Failed to create socket connection:', error);
+        reject(error);
+      }
+    });
+  }
+
+  setupRoomListeners() {
+    if (!this.socket) return;
+
+    // Playback synchronization events
+    this.socket.on('playback-state-sync', (data) => {
+      console.log('🔄 Received playback state sync:', data);
+      this.emit('playback-state-sync', data);
+    });
+
+    this.socket.on('sync-play', (data) => {
+      console.log('▶️ Received sync play:', data);
+      this.emit('sync-play', data);
+    });
+
+    this.socket.on('sync-pause', (data) => {
+      console.log('⏸️ Received sync pause:', data);
+      this.emit('sync-pause', data);
+    });
+
+    this.socket.on('sync-seek', (data) => {
+      console.log('⏩ Received sync seek:', data);
+      this.emit('sync-seek', data);
+    });
+
+    this.socket.on('sync-track-change', (data) => {
+      console.log('🎵 Received sync track change:', data);
+      this.emit('sync-track-change', data);
+    });
+
+    this.socket.on('sync-volume-change', (data) => {
+      console.log('🔊 Received sync volume change:', data);
+      this.emit('sync-volume-change', data);
+    });
+
+    // Room events
+    this.socket.on('user-joined', (data) => {
+      console.log('👋 User joined room:', data);
+      this.emit('user-joined', data);
+    });
+
+    this.socket.on('user-left', (data) => {
+      console.log('👋 User left room:', data);
+      this.emit('user-left', data);
+    });
+  }
+
+  joinRoom(roomId, isHost = false) {
+    if (!this.socket || !this.isConnected) {
+      console.error('❌ Cannot join room: not connected to server');
+      return;
+    }
+
+    this.currentRoom = roomId;
+    this.isHost = isHost;
+    
+    console.log(`🚪 Joining room ${roomId} as ${isHost ? 'host' : 'participant'}`);
+    this.socket.emit('join-room', roomId);
+  }
+
+  leaveRoom() {
+    if (!this.socket || !this.currentRoom) return;
+
+    console.log(`🚪 Leaving room ${this.currentRoom}`);
+    this.socket.emit('leave-room');
+    this.currentRoom = null;
+    this.isHost = false;
+  }
+
+  // HOST ONLY: Control playback for entire room
+  hostPlay(trackId, currentTime = 0) {
+    if (!this.isHost || !this.socket || !this.currentRoom) {
+      console.warn('⚠️ Cannot control playback: not host or not in room');
+      return;
+    }
+
+    console.log('▶️ HOST: Triggering play for room', { trackId, currentTime });
+    this.socket.emit('host-play', { trackId, currentTime });
+  }
+
+  hostPause(currentTime = 0) {
+    if (!this.isHost || !this.socket || !this.currentRoom) {
+      console.warn('⚠️ Cannot control playback: not host or not in room');
+      return;
+    }
+
+    console.log('⏸️ HOST: Triggering pause for room', { currentTime });
+    this.socket.emit('host-pause', { currentTime });
+  }
+
+  hostSeek(currentTime) {
+    if (!this.isHost || !this.socket || !this.currentRoom) {
+      console.warn('⚠️ Cannot control playback: not host or not in room');
+      return;
+    }
+
+    console.log('⏩ HOST: Triggering seek for room', { currentTime });
+    this.socket.emit('host-seek', { currentTime });
+  }
+
+  hostChangeTrack(trackId, autoPlay = false) {
+    if (!this.isHost || !this.socket || !this.currentRoom) {
+      console.warn('⚠️ Cannot control playback: not host or not in room');
+      return;
+    }
+
+    console.log('🎵 HOST: Triggering track change for room', { trackId, autoPlay });
+    this.socket.emit('host-change-track', { trackId, autoPlay });
+  }
+
+  hostVolumeChange(volume) {
+    if (!this.isHost || !this.socket || !this.currentRoom) {
+      console.warn('⚠️ Cannot control playback: not host or not in room');
+      return;
+    }
+
+    console.log('🔊 HOST: Triggering volume change for room', { volume });
+    this.socket.emit('host-volume-change', { volume });
+  }
+
+  requestPlaybackSync() {
+    if (!this.socket || !this.currentRoom) return;
+
+    console.log('🔄 Requesting playback sync');
+    this.socket.emit('request-playback-sync');
+  }
+
+  // Event listener management
+  on(event, callback) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event).push(callback);
+  }
+
+  off(event, callback) {
+    if (!this.listeners.has(event)) return;
+    
+    const callbacks = this.listeners.get(event);
+    const index = callbacks.indexOf(callback);
+    if (index > -1) {
+      callbacks.splice(index, 1);
+    }
+  }
+
+  emit(event, data) {
+    if (!this.listeners.has(event)) return;
+    
+    this.listeners.get(event).forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error(`Error in socket event listener for ${event}:`, error);
+      }
+    });
+  }
+
+  disconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+      this.isConnected = false;
+      this.currentRoom = null;
+      this.isHost = false;
+      this.listeners.clear();
+    }
+  }
+
+  // Getters
+  get connected() {
+    return this.isConnected;
+  }
+
+  get roomId() {
+    return this.currentRoom;
+  }
+
+  get hostStatus() {
+    return this.isHost;
+  }
+}
+
+// Export singleton instance
+export default new SocketService();

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Room Playback</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Room 5 Playback Test</h1>
+    <div id="status">Connecting...</div>
+    <br>
+    <button onclick="testPlay()">Test Play Track 14</button>
+    <button onclick="testChangeToTrack9()">Change to Track 9</button>
+    <button onclick="testChangeToTrack14()">Change to Track 14</button>
+    <button onclick="testPause()">Test Pause</button>
+    <br><br>
+    <div id="logs"></div>
+
+    <script>
+        const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQsImVtYWlsIjoid2FsZXNvbGFnYmFkZUB5YWhvby5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTc1NDM1NTI3MiwiZXhwIjoxNzU0NDQxNjcyfQ.YY705QAUmjNbPHXMf5muYK7qcpIob76iDoBDFmgRKgI';
+        
+        const socket = io('http://localhost:3001', {
+            auth: {
+                token: token
+            }
+        });
+
+        function log(message) {
+            const logs = document.getElementById('logs');
+            logs.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+        }
+
+        socket.on('connect', () => {
+            log('✅ Connected to server');
+            document.getElementById('status').innerText = 'Connected';
+            
+            // Join room 5
+            socket.emit('join-room', 5);
+            log('📡 Joining room 5...');
+        });
+
+        socket.on('playback-state-sync', (data) => {
+            log('🔄 Playback state sync: ' + JSON.stringify(data));
+        });
+
+        socket.on('sync-play', (data) => {
+            log('▶️ Sync play received: ' + JSON.stringify(data));
+        });
+
+        socket.on('sync-pause', (data) => {
+            log('⏸️ Sync pause received: ' + JSON.stringify(data));
+        });
+
+        socket.on('sync-track-change', (data) => {
+            log('🎵 Track change received: ' + JSON.stringify(data));
+        });
+
+        socket.on('error', (error) => {
+            log('❌ Error: ' + JSON.stringify(error));
+        });
+
+        function testPlay() {
+            log('🎮 Testing play with track 14...');
+            socket.emit('host-play', { trackId: 14, currentTime: 0 });
+        }
+
+        function testChangeToTrack9() {
+            log('🎮 Testing track change to track 9...');
+            socket.emit('host-change-track', { trackId: 9, autoPlay: false });
+        }
+
+        function testChangeToTrack14() {
+            log('🎮 Testing track change to track 14...');
+            socket.emit('host-change-track', { trackId: 14, autoPlay: false });
+        }
+
+        function testPause() {
+            log('🎮 Testing pause...');
+            socket.emit('host-pause', { currentTime: 10 });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Track Clicking</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #00ff00; }
+        .status { margin: 10px 0; padding: 10px; background: #333; border-radius: 5px; }
+        .success { border-left: 4px solid #00ff00; }
+        .error { border-left: 4px solid #ff0000; }
+        .warning { border-left: 4px solid #ffaa00; }
+        .info { border-left: 4px solid #0088ff; }
+        button { padding: 10px 20px; margin: 5px; background: #007700; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #009900; }
+        pre { background: #222; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Track Clicking Debug Tool</h1>
+    
+    <div class="status info">
+        <strong>Instructions:</strong>
+        <ol>
+            <li>Open Room 5 in another tab</li>
+            <li>Log in as host (wale@example.com / password123)</li>
+            <li>Try clicking on tracks in the queue</li>
+            <li>Watch this page for debug output</li>
+        </ol>
+    </div>
+
+    <button onclick="openRoom()">🏠 Open Room 5</button>
+    <button onclick="openLogin()">🔐 Open Login</button>
+    <button onclick="clearLogs()">🧹 Clear Logs</button>
+    <button onclick="testSocket()">🔌 Test Socket Direct</button>
+
+    <div id="logs"></div>
+
+    <script>
+        let logs = [];
+        
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push(logEntry);
+            
+            const logsDiv = document.getElementById('logs');
+            const logElement = document.createElement('div');
+            logElement.className = `status ${type}`;
+            logElement.innerHTML = `<pre>${logEntry}</pre>`;
+            logsDiv.appendChild(logElement);
+            
+            // Auto-scroll to bottom
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            
+            // Keep only last 50 logs
+            if (logs.length > 50) {
+                logs.shift();
+                if (logsDiv.children.length > 50) {
+                    logsDiv.removeChild(logsDiv.firstChild);
+                }
+            }
+        }
+
+        function openRoom() {
+            window.open('http://localhost:3000/room/5', '_blank');
+            addLog('🏠 Room 5 opened', 'success');
+        }
+
+        function openLogin() {
+            window.open('http://localhost:3000/login', '_blank');
+            addLog('🔐 Login page opened', 'success');
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            logs = [];
+            addLog('🧹 Logs cleared', 'info');
+        }
+
+        function testSocket() {
+            addLog('🔌 Testing socket connection to localhost:3001...', 'info');
+            
+            // Test if server is responding
+            fetch('http://localhost:3001/api/health')
+                .then(response => {
+                    if (response.ok) {
+                        addLog('✅ Server is responding on port 3001', 'success');
+                    } else {
+                        addLog('❌ Server responded but with error: ' + response.status, 'error');
+                    }
+                })
+                .catch(error => {
+                    addLog('❌ Cannot connect to server: ' + error.message, 'error');
+                });
+        }
+
+        // Capture console logs from other windows (if opened from here)
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const originalConsoleWarn = console.warn;
+
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.join(' ');
+            if (message.includes('🖱️') || message.includes('🎵') || message.includes('🚫') || message.includes('🔌')) {
+                const type = message.includes('🚫') || message.includes('❌') ? 'error' : 
+                           message.includes('⚠️') ? 'warning' : 'success';
+                addLog(message, type);
+            }
+        };
+
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            const message = args.join(' ');
+            addLog('❌ ERROR: ' + message, 'error');
+        };
+
+        // Start monitoring
+        addLog('🚀 Debug tool started. Open Room 5 and test track clicking!', 'info');
+        
+        // Test server connection on load
+        setTimeout(testSocket, 1000);
+    </script>
+</body>
+</html>

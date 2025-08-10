@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: openstream-postgres
+    environment:
+      POSTGRES_DB: openstream
+      POSTGRES_USER: openstream
+      POSTGRES_PASSWORD: openstream123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/src/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openstream"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - openstream
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: openstream-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - openstream
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: openstream-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - openstream
+
+  # Nginx Media Server
+  nginx:
+    image: nginx:alpine
+    container_name: openstream-nginx
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./media:/usr/share/nginx/html/media
+      - ./uploads:/usr/share/nginx/html/uploads
+    depends_on:
+      - minio
+    networks:
+      - openstream
+
+  # OpenStream API Server
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: openstream-api
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://openstream:openstream123@postgres:5432/openstream
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - JWT_SECRET=your-production-jwt-secret-change-this
+      - MEDIA_BASE_URL=http://localhost:8081
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./media:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - openstream
+
+  # OpenStream Web Client
+  web:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: openstream-web
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - openstream
+
+  # MeiliSearch (Optional - for enhanced search)
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: openstream-search
+    environment:
+      MEILI_MASTER_KEY: your-meili-master-key
+      MEILI_ENV: production
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+    networks:
+      - openstream
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  meilisearch_data:
+    driver: local
+
+networks:
+  openstream:
+    driver: bridge
