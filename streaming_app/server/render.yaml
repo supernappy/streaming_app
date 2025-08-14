@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: openstream-api
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    autoDeploy: false
+
+databases:
+  - name: openstream-db
+    plan: starter
+    databaseName: openstream
+    user: openstream
+
+  - name: openstream-redis
+    plan: starter
+    type: redis
