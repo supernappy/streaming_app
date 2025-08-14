@@ -66,6 +66,7 @@ import { formatPlays } from '../utils/format';
 import { usePlayer } from '../contexts/PlayerContext';
 
 const ModernAudioPlayer = ({ 
+const ModernAudioPlayer = ({ 
   room, 
   isHost, 
   tracks = [], 
@@ -75,6 +76,8 @@ const ModernAudioPlayer = ({
   onEnergyChange,
   onVibeChange
 }) => {
+  const [showPlayer, setShowPlayer] = useState(true);
+  const [showPlayer, setShowPlayer] = useState(true);
   // Use global player context for playback & play counts
   const { currentTrack, isPlaying, playTrack, togglePlayPause } = usePlayer();
   const [displayTracks, setDisplayTracks] = useState(tracks);
@@ -301,8 +304,32 @@ const ModernAudioPlayer = ({
 
   const getTrackUrl = (track) => track?.file_url || track?.url || '';
 
+  if (!showPlayer) return null;
+
   return (
     <Card sx={{
+      background: 'rgba(255, 255, 255, 0.1)',
+      backdropFilter: 'blur(20px)',
+      borderRadius: '24px',
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      overflow: 'hidden',
+      position: 'relative'
+    }}>
+      {/* Close button */}
+      <IconButton
+        size="small"
+        sx={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          color: 'rgba(0,0,0,0.5)',
+          zIndex: 2
+        }}
+        onClick={() => setShowPlayer(false)}
+        aria-label="Close player"
+      >
+        ×
+      </IconButton>
       background: 'rgba(255, 255, 255, 0.1)',
       backdropFilter: 'blur(20px)',
       borderRadius: '24px',

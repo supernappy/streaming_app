@@ -1,4 +1,34 @@
+// ...existing code...
+// ErrorBoundary to catch invalid React children errors
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    this.setState({ errorInfo });
+    // Log error to console for debugging
+    // eslint-disable-next-line no-console
+    console.error('ErrorBoundary caught:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 32, color: 'red', background: '#fff' }}>
+          <h2>Something went wrong.</h2>
+          <pre>{String(this.state.error)}</pre>
+          <pre>{this.state.errorInfo && this.state.errorInfo.componentStack}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import React from 'react';
+import { SnackbarProvider } from 'notistack';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -9,19 +39,21 @@ import { SocketProvider } from './contexts/SocketContext_enhanced';
 console.log('🚀 APP.JS: Loading with test socket context...');
 
 import Navbar from './components/Navbar';
+import ThreeDBackground from './components/ThreeDBackground';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Upload from './pages/Upload';
 import Rooms from './pages/Rooms';
 import Room from './pages/Room';
 import Playlists from './pages/Playlists';
 import Search from './pages/Search';
+import Library from './pages/Library';
+import Trending from './pages/Trending';
+import CuratedPlaylist from './pages/CuratedPlaylist';
 import Player from './components/Player';
 import FloatingPlayer from './components/FloatingPlayer';
-import PlayEventsDebugPanel from './components/PlayEventsDebugPanel';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
@@ -186,66 +218,67 @@ const theme = createTheme({
   },
 });
 
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <SocketProvider>
-          <PlayerProvider>
-            <Router>
-              <div className="App">
-                <Navbar />
-                <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/search" element={<Search />} />
-                <Route path="/rooms" element={<Rooms />} />
-                <Route path="/rooms/:id" element={<Room />} />
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/upload"
-                  element={
-                    <ProtectedRoute>
-                      <Upload />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/playlists"
-                  element={
-                    <ProtectedRoute>
-                      <Playlists />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-              <Player />
-              <FloatingPlayer />
-              {process.env.NODE_ENV === 'development' && <PlayEventsDebugPanel />}
-            </div>
-          </Router>
-        </PlayerProvider>
-      </SocketProvider>
-    </AuthProvider>
-  </ThemeProvider>
+      <ErrorBoundary>
+        <SnackbarProvider maxSnack={4} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} autoHideDuration={3500}>
+          <AuthProvider>
+            <SocketProvider>
+              <PlayerProvider>
+                <Router>
+                  <div className="App" style={{ position: 'relative', minHeight: '100vh', zIndex: 1 }}>
+                    <ThreeDBackground />
+                    <Navbar />
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/register" element={<Register />} />
+                      <Route path="/search" element={<Search />} />
+                      <Route path="/trending" element={<Trending />} />
+                      <Route path="/curated-playlist" element={<CuratedPlaylist />} />
+                      <Route path="/library" element={<Library />} />
+                      <Route path="/rooms" element={<Rooms />} />
+                      <Route path="/rooms/:id" element={<Room />} />
+                      {/* Dashboard route removed, Home is now Dashboard */}
+                      <Route
+                        path="/profile"
+                        element={
+                          <ProtectedRoute>
+                            <Profile />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/upload"
+                        element={
+                          <ProtectedRoute>
+                            <Upload />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/playlists"
+                        element={
+                          <ProtectedRoute>
+                            <Playlists />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                    <Player />
+                    {/* PlayEventsDebugPanel removed */}
+                  </div>
+                </Router>
+              </PlayerProvider>
+            </SocketProvider>
+          </AuthProvider>
+        </SnackbarProvider>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 

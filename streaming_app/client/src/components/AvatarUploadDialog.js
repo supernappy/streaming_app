@@ -110,19 +110,23 @@ const AvatarUploadDialog = ({ open, onClose, currentAvatar, onAvatarUpdate }) =>
       onClose={handleCancel}
       maxWidth="md"
       fullWidth
+      transitionDuration={400}
       PaperProps={{
         sx: {
-          bgcolor: '#1e1e1e',
-          borderRadius: '16px'
+          background: 'linear-gradient(135deg, rgba(40,40,60,0.95) 0%, rgba(60,60,80,0.95) 100%)',
+          backdropFilter: 'blur(24px) saturate(180%)',
+          borderRadius: '20px',
+          border: '1.5px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 8px 40px 0 rgba(102,126,234,0.18)',
         }
       }}
     >
-      <DialogTitle sx={{ color: 'white', textAlign: 'center' }}>
+  <DialogTitle sx={{ color: 'white', textAlign: 'center', fontWeight: 700, letterSpacing: 0.5, fontSize: '1.5rem', pb: 1 }}>
         <PhotoCamera sx={{ mr: 1, verticalAlign: 'middle' }} />
         Update Profile Picture
       </DialogTitle>
       
-      <DialogContent>
+  <DialogContent sx={{ pb: 0 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
@@ -239,11 +243,11 @@ const AvatarUploadDialog = ({ open, onClose, currentAvatar, onAvatarUpdate }) =>
         </Card>
       </DialogContent>
       
-      <DialogActions sx={{ p: 3 }}>
+      <DialogActions sx={{ p: 3, justifyContent: 'center', gap: 2 }}>
         <Button
           onClick={handleCancel}
           startIcon={<Cancel />}
-          sx={{ color: '#ccc' }}
+          sx={{ color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: 2, px: 3, fontWeight: 500, boxShadow: '0 2px 8px 0 rgba(102,126,234,0.10)', transition: 'background 0.2s', '&:hover': { background: 'rgba(255,255,255,0.18)' } }}
         >
           Cancel
         </Button>
@@ -251,7 +255,7 @@ const AvatarUploadDialog = ({ open, onClose, currentAvatar, onAvatarUpdate }) =>
           onClick={handleSave}
           startIcon={<Save />}
           variant="contained"
-          sx={{ bgcolor: '#667eea' }}
+          sx={{ bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', borderRadius: 2, px: 3, fontWeight: 600, boxShadow: '0 4px 16px 0 rgba(102,126,234,0.18)', transition: 'background 0.2s', '&:hover': { bgcolor: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)' } }}
         >
           Save Changes
         </Button>

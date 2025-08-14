@@ -14,7 +14,6 @@ export const useSocket = () => {
 
 export const SocketProvider = ({ children }) => {
   console.log('🚀 SOCKET PROVIDER: Initializing...');
-  
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [currentRoom, setCurrentRoom] = useState(null);
@@ -29,6 +28,18 @@ export const SocketProvider = ({ children }) => {
     isSynced: true
   });
   const { user, token, loading } = useAuth();
+
+  // Emoji reaction function (now in correct scope)
+  const reactToMessage = useCallback((messageId, emoji, add = true) => {
+    if (socket && currentRoom) {
+      socket.emit('room:react-message', {
+        roomId: currentRoom,
+        messageId,
+        emoji,
+        add
+      });
+    }
+  }, [socket, currentRoom]);
   
   console.log('🔐 SOCKET PROVIDER: Auth state', { hasUser: !!user, hasToken: !!token, loading });
 
@@ -464,6 +475,7 @@ export const SocketProvider = ({ children }) => {
     requestPlaybackSync,
     // Chat
     sendMessage,
+    reactToMessage,
     // Participants
     getParticipants,
     // Other functions

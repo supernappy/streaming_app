@@ -1,4 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+  // Media refs for audio/video
+  const audioRef = useRef(null);
+  const videoRef = useRef(null);
+
+  // Utility: is current track an MP4?
+  const isCurrentTrackMp4 = currentTrack && (currentTrack.file_url || currentTrack.url || '').toLowerCase().endsWith('.mp4');
 import {
   Box,
   Card,
@@ -44,13 +50,27 @@ const ModernAudioPlayerSimple = ({
   const [volume, setVolume] = useState(70);
   const [progress, setProgress] = useState(30);
 
+  const getMediaRef = () => (isCurrentTrackMp4 ? videoRef : audioRef);
+
   const handlePlayPause = () => {
+    const media = getMediaRef().current;
+    if (media) {
+      if (isPlaying) {
+        media.pause();
+      } else {
+        media.play();
+      }
+    }
     setIsPlaying(!isPlaying);
     if (onPlayStateChange) onPlayStateChange(!isPlaying);
   };
 
   const handleVolumeChange = (event, newValue) => {
     setVolume(newValue);
+    const media = getMediaRef().current;
+    if (media) {
+      media.volume = newValue / 100;
+    }
     if (onVolumeChange) onVolumeChange(newValue);
   };
 
@@ -73,6 +93,26 @@ const ModernAudioPlayerSimple = ({
               
               {currentTrack ? (
                 <Box>
+                  {/* Media element: audio or video */}
+                  {isCurrentTrackMp4 ? (
+                    <video
+                      ref={videoRef}
+                      src={currentTrack.file_url || currentTrack.url}
+                      poster={currentTrack.cover_url}
+                      style={{ width: 180, maxHeight: 120, margin: '0 auto 16px', display: 'block', background: '#000' }}
+                      controls
+                      crossOrigin="anonymous"
+                      onEnded={() => setIsPlaying(false)}
+                    />
+                  ) : (
+                    <audio
+                      ref={audioRef}
+                      src={currentTrack.file_url || currentTrack.url}
+                      crossOrigin="anonymous"
+                      onEnded={() => setIsPlaying(false)}
+                      style={{ display: 'none' }}
+                    />
+                  )}
                   <Avatar
                     sx={{
                       width: 120,
@@ -80,8 +120,11 @@ const ModernAudioPlayerSimple = ({
                       mx: 'auto',
                       mb: 2,
                       background: 'linear-gradient(45deg, #4ECDC4, #44A08D)',
-                      fontSize: '3rem'
+                      fontSize: '3rem',
+                      position: 'relative',
+                      zIndex: 1
                     }}
+                    src={!isCurrentTrackMp4 ? currentTrack.cover_url : undefined}
                   >
                     🎵
                   </Avatar>
@@ -91,10 +134,10 @@ const ModernAudioPlayerSimple = ({
                   <Typography variant="body2" sx={{ opacity: 0.7, mb: 1 }}>
                     {currentTrack.artist || 'Unknown Artist'}
                   </Typography>
-          {typeof currentTrack.play_count !== 'undefined' && (
+                  {typeof currentTrack.play_count !== 'undefined' && (
                     <Chip 
                       size="small"
-            label={formatPlays(currentTrack.play_count)}
+                      label={formatPlays(currentTrack.play_count)}
                       sx={{ 
                         mb: 2,
                         background: 'rgba(255,255,255,0.15)', 

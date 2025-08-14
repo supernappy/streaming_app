@@ -16,7 +16,7 @@ class SocketService {
 
     return new Promise((resolve, reject) => {
       try {
-        this.socket = io(process.env.REACT_APP_SERVER_URL || 'http://localhost:5002', {
+        this.socket = io(process.env.REACT_APP_WEBSOCKET_URL || process.env.REACT_APP_API_URL || 'http://localhost:5002', {
           auth: {
             token: token
           },

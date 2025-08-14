@@ -196,20 +196,7 @@ const Dashboard = () => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="contained"
-              startIcon={<CloudUpload />}
-              onClick={() => navigate('/profile')}
-              sx={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-                }
-              }}
-            >
-              View Profile
-            </Button>
+            {/* Profile navigation removed from Home/Dashboard */}
             <Button
               variant="outlined"
               startIcon={<Refresh />}
@@ -304,14 +291,24 @@ const Dashboard = () => {
                 </Typography>
                 {recentTracks.length > 0 ? (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {recentTracks.map((track) => (
-                      <AudioPlayer 
-                        key={track.id} 
-                        track={track} 
-                        onPlay={(track) => playTrack(track, recentTracks)}
-                        compact={true}
-                      />
-                    ))}
+                    {recentTracks
+                      .filter(
+                        (track) =>
+                          track &&
+                          typeof track === 'object' &&
+                          track.id &&
+                          track.title &&
+                          track.artist &&
+                          (track.file_url || track.hls_url)
+                      )
+                      .map((track) => (
+                        <AudioPlayer
+                          key={track.id}
+                          track={track}
+                          onPlay={(track) => playTrack(track, recentTracks)}
+                          compact={true}
+                        />
+                      ))}
                   </Box>
                 ) : (
                   <Card sx={{ backgroundColor: '#2a2a2a' }}>
@@ -337,18 +334,7 @@ const Dashboard = () => {
                   </Typography>
                 </CardContent>
               </Card>
-              <Card 
-                sx={{ backgroundColor: '#2a2a2a', cursor: 'pointer', '&:hover': { backgroundColor: '#3a3a3a' } }}
-                onClick={() => navigate('/profile')}
-              >
-                <CardContent>
-                  <QueueMusic sx={{ color: '#1DB954', mb: 1 }} />
-                  <Typography variant="h6" sx={{ color: '#fff' }}>Edit Profile</Typography>
-                  <Typography variant="body2" sx={{ color: '#ccc' }}>
-                    Update your profile and settings
-                  </Typography>
-                </CardContent>
-              </Card>
+              {/* Edit Profile card removed from Home/Dashboard */}
             </Box>
           </Grid>
         </Grid>

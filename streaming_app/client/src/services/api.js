@@ -1,3 +1,14 @@
+// Generate lyrics for a track using AI
+export const generateLyricsAPI = (data) => {
+  // data: { title, artist, file (optional) }
+  const formData = new FormData();
+  if (data.file) formData.append('audio', data.file);
+  if (data.title) formData.append('title', data.title);
+  if (data.artist) formData.append('artist', data.artist);
+  return api.post('/tracks/generate-lyrics', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
 import axios from 'axios';
 
 // Create axios instance with base configuration
@@ -64,6 +75,7 @@ export const tracksAPI = {
   delete: (id) => api.delete(`/tracks/${id}`),
   like: (id) => api.post(`/tracks/${id}/like`),
   unlike: (id) => api.delete(`/tracks/${id}/like`),
+  generateLyrics: generateLyricsAPI,
 };
 
 // Playlists API

@@ -87,6 +87,14 @@ const Navbar = () => {
           >
             Rooms
           </Button>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/library"
+            startIcon={<QueueMusic />}
+          >
+            Library
+          </Button>
           {isAuthenticated && (
             <>
               <Button
@@ -105,13 +113,14 @@ const Navbar = () => {
               >
                 Upload
               </Button>
+              {/* Profile button for authenticated users */}
               <Button
                 color="inherit"
                 component={Link}
-                to="/dashboard"
-                startIcon={<Dashboard />}
+                to="/profile"
+                startIcon={<AccountCircle />}
               >
-                Dashboard
+                Profile
               </Button>
             </>
           )}

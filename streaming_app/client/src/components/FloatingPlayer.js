@@ -29,25 +29,25 @@ const FloatingPlayer = () => {
     playPrevious,
     volume
   } = usePlayer();
-
+  
   const [isVisible, setIsVisible] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [scrollY, setScrollY] = useState(0);
-
+  const [showPlayer, setShowPlayer] = useState(true);
+  
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       setScrollY(currentScrollY);
-      
       // Show floating player when scrolled down and player is at bottom
-      setIsVisible(currentScrollY > 200 && currentTrack);
+      setIsVisible(currentScrollY > 200 && currentTrack && showPlayer);
     };
-
+  
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [currentTrack]);
-
-  if (!currentTrack) {
+  }, [currentTrack, showPlayer]);
+  
+  if (!currentTrack || !showPlayer) {
     return null;
   }
 

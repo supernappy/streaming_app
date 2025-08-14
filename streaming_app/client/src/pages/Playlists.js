@@ -30,6 +30,7 @@ import axios from 'axios';
 import { usePlayer } from '../contexts/PlayerContext';
 import Tooltip from '@mui/material/Tooltip';
 import AudioPlayer from '../components/AudioPlayer';
+import TrackCard from '../components/TrackCard';
 import useSyncTrackCounts from '../hooks/useSyncTrackCounts';
 import { formatPlays } from '../utils/format';
 
@@ -288,18 +289,14 @@ const Playlists = () => {
                   {/* Track List */}
                   {selectedPlaylist.tracks?.length > 0 ? (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {syncedPlaylistTracks.map((track, index) => (
-                      <Tooltip key={track.id} title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                        <div>
-                          <AudioPlayer 
-                            track={track} 
-                            onPlay={(track) => playTrack(track, syncedPlaylistTracks)}
-                            compact={true}
-                            showIndex={index + 1}
-                          />
-                        </div>
-                      </Tooltip>
-                    ))}
+                      {syncedPlaylistTracks.map((track, index) => (
+                        <TrackCard
+                          key={track.id}
+                          track={track}
+                          onPlay={() => playTrack(track, syncedPlaylistTracks)}
+                          showActions={true}
+                        />
+                      ))}
                     </Box>
                   ) : (
                     <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -549,26 +546,24 @@ const Playlists = () => {
         </Alert>
       </Snackbar>
       {/* Recently Played Section */}
-      {recentlyPlayed && recentlyPlayed.length > 0 && (
-        <Box sx={{ mt: 6, mb: 4 }}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>
-            Recently Played
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'row', gap: 2, flexWrap: 'wrap' }}>
-            {recentlyPlayed.slice(0, 8).map((track) => (
-              <Tooltip key={track.id} title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                <div style={{ minWidth: 220, flex: '1 0 220px' }}>
-                  <AudioPlayer 
-                    track={track} 
-                    onPlay={(track) => playTrack(track)}
-                    compact={true}
-                  />
-                </div>
-              </Tooltip>
-            ))}
-          </Box>
-        </Box>
-      )}
+            {recentlyPlayed && recentlyPlayed.length > 0 && (
+              <Box sx={{ mt: 6, mb: 4 }}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>
+                  Recently Played
+                </Typography>
+                <Grid container spacing={2}>
+                  {recentlyPlayed.slice(0, 8).map((track) => (
+                    <Grid item xs={12} sm={6} md={3} key={track.id}>
+                      <TrackCard
+                        track={track}
+                        onPlay={() => playTrack(track)}
+                        showActions={true}
+                      />
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
 
       {/* AI Recommendations Section */}
       <Box sx={{ mt: 8, mb: 4 }}>

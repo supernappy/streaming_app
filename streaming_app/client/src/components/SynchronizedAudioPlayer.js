@@ -20,6 +20,8 @@ import api from '../services/api';
 import { formatPlays } from '../utils/format';
 
 const SynchronizedAudioPlayer = ({ roomId, isHost, tracks = [] }) => {
+const SynchronizedAudioPlayer = ({ roomId, isHost, tracks = [] }) => {
+  const [showPlayer, setShowPlayer] = useState(true);
 
   // Playback state (declare all before any code that uses them)
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -308,6 +310,8 @@ const SynchronizedAudioPlayer = ({ roomId, isHost, tracks = [] }) => {
       audioRef.current.src = tracks[0].file_url;
     }
   }, [tracks, currentTrack]);
+
+  if (!showPlayer) return null;
 
   return (
     <Card 

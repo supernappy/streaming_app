@@ -19,8 +19,10 @@ const Upload = () => {
     title: '',
     artist: '',
     album: '',
-    genre: ''
+    genre: '',
+    lyrics: ''
   });
+  // const [generatingLyrics, setGeneratingLyrics] = useState(false);
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -34,6 +36,22 @@ const Upload = () => {
     });
   };
 
+
+  // Auto-convert plain lyrics to basic LRC (5s per line)
+  const convertLyricsToLRC = (plainLyrics) => {
+    if (!plainLyrics) return '';
+    const lines = plainLyrics.split(/\r?\n/).filter(line => line.trim() !== '');
+    return lines.map((line, idx) => {
+      const min = Math.floor((idx * 5) / 60).toString().padStart(2, '0');
+      const sec = ((idx * 5) % 60).toString().padStart(2, '0');
+      return `[${min}:${sec}] ${line}`;
+    }).join('\n');
+  };
+
+  const handleConvertToLRC = () => {
+    setFormData({ ...formData, lyrics: convertLyricsToLRC(formData.lyrics) });
+  };
+
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
@@ -44,10 +62,12 @@ const Upload = () => {
       console.log('File size:', selectedFile.size);
       
       // Validate file type
-      const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/flac', 'audio/aac', 'audio/ogg', 'application/octet-stream'];
+      const allowedTypes = [
+        'audio/mpeg', 'audio/wav', 'audio/flac', 'audio/aac', 'audio/ogg', 'audio/mp4', 'video/mp4', 'application/octet-stream'
+      ];
       if (!allowedTypes.includes(selectedFile.type)) {
         console.log('File type validation failed. Allowed types:', allowedTypes);
-        setError('Please select a valid audio file (MP3, WAV, FLAC, AAC, OGG)');
+  setError('Please select a valid audio or MP4 file (MP3, WAV, FLAC, AAC, OGG, MP4)');
         return;
       }
       
@@ -93,6 +113,9 @@ const Upload = () => {
       uploadFormData.append('artist', formData.artist);
       uploadFormData.append('album', formData.album);
       uploadFormData.append('genre', formData.genre);
+      if (formData.lyrics) {
+        uploadFormData.append('lyrics', formData.lyrics);
+      }
 
       console.log('FormData contents:');
       for (let pair of uploadFormData.entries()) {
@@ -110,7 +133,8 @@ const Upload = () => {
         title: '',
         artist: '',
         album: '',
-        genre: ''
+        genre: '',
+        lyrics: ''
       });
       setFile(null);
       
@@ -189,7 +213,7 @@ const Upload = () => {
                 <input
                   id="audio-file"
                   type="file"
-                  accept="audio/*"
+                  accept="audio/*,video/mp4"
                   onChange={handleFileChange}
                   style={{ display: 'none' }}
                   disabled={uploading}
@@ -241,12 +265,34 @@ const Upload = () => {
             sx={{ mb: 3 }}
           />
 
+          {/* Lyrics Field (AI generation removed) */}
+          <TextField
+            fullWidth
+            label="Lyrics (optional)"
+            name="lyrics"
+            value={formData.lyrics}
+            onChange={handleChange}
+            multiline
+            minRows={4}
+            maxRows={12}
+            disabled={uploading}
+            sx={{ mb: 2 }}
+            placeholder="Paste lyrics (optional, or click 'Convert to LRC' for sync)"
+          />
+          <Button
+            variant="outlined"
+            onClick={handleConvertToLRC}
+            disabled={uploading || !formData.lyrics}
+            sx={{ mb: 2, ml: 0 }}
+          >
+            Convert to LRC (Sync Lyrics)
+          </Button>
           <Button
             type="submit"
             variant="contained"
             size="large"
             disabled={uploading || !file}
-            sx={{ mt: 2 }}
+            sx={{ mt: 2, ml: 2 }}
           >
             {uploading ? 'Uploading...' : 'Upload Track'}
           </Button>

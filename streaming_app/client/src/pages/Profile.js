@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import Analytics from '@mui/icons-material/Analytics';
 import {
   Box,
   Container,
@@ -34,8 +35,11 @@ import {
   RadioGroup,
   Radio,
   Tooltip,
-  LinearProgress
+  LinearProgress,
+  FormGroup,
+  TextField
 } from '@mui/material';
+import TrackCard from '../components/TrackCard';
 import {
   Edit,
   Save,
@@ -56,32 +60,19 @@ import {
   Security,
   Notifications,
   Delete,
-  Psychology,
-  AutoAwesome,
-  Lightbulb,
-  Analytics
+  AutoAwesome
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import AvatarUploadDialog from '../components/AvatarUploadDialog';
 import AIRecommendations from '../components/AIRecommendations';
-import axios from 'axios';
+
 import api from '../services/api';
 import useSyncTrackCounts from '../hooks/useSyncTrackCounts';
 import { formatPlays, formatNumberCompact } from '../utils/format';
 import { usePlayer } from '../contexts/PlayerContext';
 // import Tooltip from '@mui/material/Tooltip';
 
-// Configure axios
-axios.defaults.baseURL = 'http://localhost:5002';
-axios.defaults.withCredentials = true;
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 // Clean, simple input component that never loses focus
 const CleanInput = ({ label, value, onChange, disabled = false, multiline = false, placeholder = "", type = "text" }) => {
@@ -195,8 +186,9 @@ const Profile = () => {
   
   // AI Enhancement state
   const [aiSuggestions, setAiSuggestions] = useState(null);
-  const [loadingAI, setLoadingAI] = useState(false);
+  const [loadingAIByTrackId, setLoadingAIByTrackId] = useState({});
   const [aiAnalysisDialog, setAiAnalysisDialog] = useState(false);
+  const [latestAIAnalysis, setLatestAIAnalysis] = useState(null);
   
   // Dialog states
   const [avatarUploadDialog, setAvatarUploadDialog] = useState(false);
@@ -235,30 +227,43 @@ const Profile = () => {
     fetchProfileData();
   }, []);
 
-  // Fetch AI enhancement suggestions when profile loads
-  // Only run fetchAIEnhancements when user or profile.username changes, but ensure it does not update profile.username
-  // AI enhancement suggestions are disabled due to missing backend endpoint
-  // useEffect(() => {
-  //   if (user && profile.username) {
-  //     fetchAIEnhancements();
-  //   }
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [user, profile.username]);
+
+  // Fetch AI enhancement suggestions (mocked)
+  useEffect(() => {
+    if (user && profile.username) {
+      fetchAIEnhancements();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile.username]);
+
+  // Mock AI enhancement fetch
+  const fetchAIEnhancements = async () => {
+    setAiSuggestions({
+      bio: [
+        "Passionate about sharing music and connecting with listeners.",
+        "Blending genres to create a unique sound.",
+        "Always exploring new musical frontiers."
+      ],
+      genres: ["Hip-Hop", "Electronic", "Indie Pop"],
+      style: "Experimental, Melodic",
+      insights: { strengths: ["Creativity", "Consistency", "Engagement"] }
+    });
+  };
 
   const fetchProfileData = async () => {
     try {
       setLoading(true);
       
       // Fetch profile
-      const profileResponse = await axios.get('/api/users/profile');
+  const profileResponse = await api.get('/users/profile');
       const userData = profileResponse.data.user;
       
       // Fetch tracks
-      const tracksResponse = await axios.get('/api/tracks?limit=50');
+  const tracksResponse = await api.get('/tracks?limit=50');
       const userTracksData = tracksResponse.data.tracks?.filter(track => track.user_id === userData.id) || [];
       
       // Fetch playlists
-      const playlistsResponse = await axios.get('/api/playlists');
+  const playlistsResponse = await api.get('/playlists');
       const userPlaylistsData = playlistsResponse.data.playlists || [];
       
       // Update profile state
@@ -280,12 +285,29 @@ const Profile = () => {
       
       // Update stats
       const totalPlays = userTracksData.reduce((total, track) => total + (track.play_count || 0), 0);
+      const totalLikes = userTracksData.reduce((total, track) => total + (track.like_count || 0), 0);
+
+      let followers = 0;
+      let following = 0;
+      try {
+        if (userData.id) {
+          const followersRes = await api.get(`/users/${userData.id}/followers`);
+          followers = Array.isArray(followersRes.data) ? followersRes.data.length : (followersRes.data.count || 0);
+          const followingRes = await api.get(`/users/${userData.id}/following`);
+          following = Array.isArray(followingRes.data) ? followingRes.data.length : (followingRes.data.count || 0);
+        }
+      } catch (err) {
+        // If followers/following endpoints fail, fallback to 0
+        followers = 0;
+        following = 0;
+      }
+
       setStats({
         tracksUploaded: userTracksData.length,
         totalPlays: totalPlays,
-        totalLikes: 0,
-        followers: 0,
-        following: 0,
+        totalLikes: totalLikes,
+        followers: followers,
+        following: following,
         playlistsCreated: userPlaylistsData.length
       });
       
@@ -311,32 +333,7 @@ const Profile = () => {
     setSuccess('AI suggestion applied! Don\'t forget to save your changes.');
   };
 
-  // Analyze track with AI
-  const analyzeTrackWithAI = async (track) => {
-    try {
-      setLoadingAI(true);
-  const response = await api.post('/ai/track/analyze', {
-        trackData: {
-          title: track.title,
-          artist: track.artist || user?.username || 'Unknown Artist',
-          genre: track.genre,
-          duration: track.duration,
-          id: track.id
-        }
-      });
-      
-      if (response.data.analysis) {
-        setSuccess(`AI Analysis complete for "${track.title}"! ${response.data.insights?.mood ? `Detected mood: ${response.data.insights.mood}` : ''}`);
-        // Refresh tracks to get updated AI data
-        fetchProfileData();
-      }
-    } catch (error) {
-      console.error('AI analysis error:', error);
-      setError(error.response?.data?.error || 'Failed to analyze track with AI');
-    } finally {
-      setLoadingAI(false);
-    }
-  };
+  // ...AI analysis logic removed...
 
   // Simple handlers without complex logic
   const handleFieldChange = (field, event) => {
@@ -377,7 +374,7 @@ const Profile = () => {
         spotify: profile.social_links.spotify
       };
       
-      const response = await axios.put('/api/users/profile', updateData);
+  const response = await api.put('/users/profile', updateData);
       
       if (response.data.user) {
         updateUser(response.data.user);
@@ -393,28 +390,26 @@ const Profile = () => {
     }
   };
 
-  const handlePasswordChange = async () => {
+  const handleChangePassword = async () => {
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setError('Please fill in all password fields.');
+      return;
+    }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setError('New passwords do not match');
+      setError('New passwords do not match.');
       return;
     }
-    
-    if (passwordForm.newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-
     try {
       setSaving(true);
-      await axios.put('/api/users/password', {
+  await api.post('/users/change-password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword
       });
-      setSuccess('Password updated successfully');
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setSuccess('Password changed successfully!');
       setPasswordDialog(false);
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to update password');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setError('Failed to change password. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -424,7 +419,7 @@ const Profile = () => {
     try {
       setProfile(prev => ({ ...prev, avatar_url: newAvatarUrl }));
       
-      const response = await axios.put('/api/users/profile', {
+  const response = await api.put('/users/profile', {
         avatar_url: newAvatarUrl
       });
       
@@ -436,6 +431,30 @@ const Profile = () => {
     } catch (error) {
       console.error('Error updating avatar:', error);
       setError('Failed to update profile picture. Please try again.');
+    }
+  };
+
+  // Notification settings handler
+  const handleSaveNotifications = async () => {
+    try {
+      // Replace with your API call for saving notification settings
+      await api.post('/users/notification-settings', notificationSettings);
+      setSuccess('Notification settings saved!');
+      setNotificationsDialog(false);
+    } catch (err) {
+      setError('Failed to save notification settings. Please try again.');
+    }
+  };
+
+  // Privacy settings handler
+  const handleSavePrivacy = async () => {
+    try {
+      // Replace with your API call for saving privacy settings
+      await api.post('/users/privacy-settings', privacySettings);
+      setSuccess('Privacy settings saved!');
+      setPrivacyDialog(false);
+    } catch (err) {
+      setError('Failed to save privacy settings. Please try again.');
     }
   };
 
@@ -600,19 +619,21 @@ const Profile = () => {
               '&.Mui-selected': { color: '#667eea' }
             }
           }}
+
         >
           <Tab icon={<MusicNote />} label="My Tracks" />
           <Tab icon={<QueueMusic />} label="Playlists" />
-          <Tab icon={<Psychology />} label="AI Discover" />
           <Tab icon={<BarChart />} label="Analytics" />
           <Tab icon={<Settings />} label="Settings" />
+          {/* <Tab icon={<Psychology />} label="AI Discover" /> */}
         </Tabs>
 
         {/* Settings Tab Content */}
-        {activeTab === 4 && (
+  {activeTab === 3 && (
           <Grid container spacing={3}>
+            {/* Profile & Social Info */}
             <Grid item xs={12} md={8}>
-              <Card sx={{ bgcolor: '#1e1e1e', borderRadius: '12px' }}>
+              <Card sx={{ bgcolor: '#1e1e1e', borderRadius: '12px', mb: 3 }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Typography variant="h6" sx={{ color: 'white' }}>
@@ -642,7 +663,6 @@ const Profile = () => {
                       {saving ? 'Saving...' : (editMode ? 'Save Changes' : 'Edit Profile')}
                     </Button>
                   </Box>
-                  
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
                       <CleanInput
@@ -679,11 +699,9 @@ const Profile = () => {
                       />
                     </Grid>
                   </Grid>
-                  
                   <Typography variant="h6" sx={{ color: 'white', mt: 4, mb: 3 }}>
                     Social Links
                   </Typography>
-                  
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
                       <CleanInput
@@ -722,7 +740,6 @@ const Profile = () => {
                       />
                     </Grid>
                   </Grid>
-                  
                   {editMode && (
                     <Box sx={{ mt: 3, textAlign: 'right' }}>
                       <Button
@@ -744,15 +761,42 @@ const Profile = () => {
                   )}
                 </CardContent>
               </Card>
+              {/* Notification & Privacy Settings */}
+              <Card sx={{ bgcolor: '#1e1e1e', borderRadius: '12px', mt: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ color: 'white', mb: 3 }}>
+                    Notification Settings
+                  </Typography>
+                  <FormGroup>
+                    <FormControlLabel control={<Switch checked={notificationSettings.emailNotifications} onChange={e => setNotificationSettings(prev => ({ ...prev, emailNotifications: e.target.checked }))} />} label="Email Notifications" />
+                    <FormControlLabel control={<Switch checked={notificationSettings.pushNotifications} onChange={e => setNotificationSettings(prev => ({ ...prev, pushNotifications: e.target.checked }))} />} label="Push Notifications" />
+                    <FormControlLabel control={<Switch checked={notificationSettings.trackLikes} onChange={e => setNotificationSettings(prev => ({ ...prev, trackLikes: e.target.checked }))} />} label="Track Likes" />
+                    <FormControlLabel control={<Switch checked={notificationSettings.newFollowers} onChange={e => setNotificationSettings(prev => ({ ...prev, newFollowers: e.target.checked }))} />} label="New Followers" />
+                    <FormControlLabel control={<Switch checked={notificationSettings.roomInvites} onChange={e => setNotificationSettings(prev => ({ ...prev, roomInvites: e.target.checked }))} />} label="Room Invites" />
+                    <FormControlLabel control={<Switch checked={notificationSettings.trackComments} onChange={e => setNotificationSettings(prev => ({ ...prev, trackComments: e.target.checked }))} />} label="Track Comments" />
+                  </FormGroup>
+                  <Divider sx={{ my: 3, bgcolor: '#333' }} />
+                  <Typography variant="h6" sx={{ color: 'white', mb: 3 }}>
+                    Privacy Settings
+                  </Typography>
+                  <FormGroup>
+                    <FormControlLabel control={<Switch checked={privacySettings.profileVisibility === 'public'} onChange={e => setPrivacySettings(prev => ({ ...prev, profileVisibility: e.target.checked ? 'public' : 'private' }))} />} label="Profile Public" />
+                    <FormControlLabel control={<Switch checked={privacySettings.showEmail} onChange={e => setPrivacySettings(prev => ({ ...prev, showEmail: e.target.checked }))} />} label="Show Email" />
+                    <FormControlLabel control={<Switch checked={privacySettings.showLocation} onChange={e => setPrivacySettings(prev => ({ ...prev, showLocation: e.target.checked }))} />} label="Show Location" />
+                    <FormControlLabel control={<Switch checked={privacySettings.allowDirectMessages} onChange={e => setPrivacySettings(prev => ({ ...prev, allowDirectMessages: e.target.checked }))} />} label="Allow Direct Messages" />
+                    <FormControlLabel control={<Switch checked={privacySettings.showOnlineStatus} onChange={e => setPrivacySettings(prev => ({ ...prev, showOnlineStatus: e.target.checked }))} />} label="Show Online Status" />
+                    <FormControlLabel control={<Switch checked={privacySettings.showListeningActivity} onChange={e => setPrivacySettings(prev => ({ ...prev, showListeningActivity: e.target.checked }))} />} label="Show Listening Activity" />
+                  </FormGroup>
+                </CardContent>
+              </Card>
             </Grid>
-            
+            {/* Account Settings */}
             <Grid item xs={12} md={4}>
               <Card sx={{ bgcolor: '#1e1e1e', borderRadius: '12px' }}>
                 <CardContent>
                   <Typography variant="h6" sx={{ color: 'white', mb: 3 }}>
                     Account Settings
                   </Typography>
-                  
                   <List>
                     <ListItem button onClick={() => setPasswordDialog(true)}>
                       <ListItemText 
@@ -766,7 +810,6 @@ const Profile = () => {
                         </IconButton>
                       </ListItemSecondaryAction>
                     </ListItem>
-                    
                     <ListItem button onClick={() => setNotificationsDialog(true)}>
                       <ListItemText 
                         primary="Notifications"
@@ -779,7 +822,6 @@ const Profile = () => {
                         </IconButton>
                       </ListItemSecondaryAction>
                     </ListItem>
-                    
                     <ListItem button onClick={() => setPrivacyDialog(true)}>
                       <ListItemText 
                         primary="Privacy Settings"
@@ -793,9 +835,7 @@ const Profile = () => {
                       </ListItemSecondaryAction>
                     </ListItem>
                   </List>
-                  
                   <Divider sx={{ my: 2, bgcolor: '#333' }} />
-                  
                   <Button
                     fullWidth
                     variant="outlined"
@@ -822,7 +862,7 @@ const Profile = () => {
                     </Typography>
                     <Button
                       variant="outlined"
-                      startIcon={<Psychology />}
+                      // startIcon for AI removed
                       onClick={() => setAiAnalysisDialog(true)}
                       sx={{
                         borderColor: '#667eea',
@@ -830,62 +870,18 @@ const Profile = () => {
                         '&:hover': { borderColor: '#764ba2', color: '#764ba2' }
                       }}
                     >
-                      AI Analysis
+                      {/* AI Analysis removed */}
                     </Button>
                   </Box>
                 </Grid>
                 
                 {syncedUserTracks.map((track, index) => (
                   <Grid item xs={12} sm={6} md={4} key={track.id}>
-                    <Tooltip title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                      <div>
-                        <Card sx={{ 
-                          bgcolor: '#1e1e1e',
-                          '&:hover': { bgcolor: '#2a2a2a', transform: 'translateY(-2px)' },
-                          transition: 'all 0.2s ease'
-                        }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
-                              {track.title}
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#ccc', mb: 2 }}>
-                              {track.genre} • {formatPlays(track.play_count || 0)}
-                            </Typography>
-                            {track.ai_tags && (
-                              <Box sx={{ mb: 2 }}>
-                                <Chip
-                                  size="small"
-                                  label={`AI: ${Math.round(track.ai_tags.aiConfidence * 100)}% confident`}
-                                  sx={{ bgcolor: '#4caf50', color: 'white', mr: 1 }}
-                                />
-                                {track.ai_tags.energy && (
-                                  <Chip
-                                    size="small"
-                                    label={`Energy: ${Math.round(track.ai_tags.energy * 100)}%`}
-                                    variant="outlined"
-                                    sx={{ color: '#ccc', borderColor: '#555' }}
-                                  />
-                                )}
-                              </Box>
-                            )}
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Button
-                                size="small"
-                                startIcon={<Psychology />}
-                                onClick={() => analyzeTrackWithAI(track)}
-                                disabled={loadingAI}
-                                sx={{ color: '#667eea' }}
-                              >
-                                {loadingAI ? 'Analyzing...' : 'AI Analyze'}
-                              </Button>
-                              <IconButton sx={{ color: '#667eea' }} onClick={() => playTrack(track, syncedUserTracks)}>
-                                <PlayArrow />
-                              </IconButton>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </Tooltip>
+                    <TrackCard
+                      track={track}
+                      onPlay={() => playTrack(track, syncedUserTracks)}
+                      showActions={true}
+                    />
                   </Grid>
                 ))}
               </Grid>
@@ -930,289 +926,169 @@ const Profile = () => {
           </Card>
         )}
 
-        {/* AI Discover Tab - New AI-powered content */}
+
+        {/* Analytics Tab - Show user stats and AI suggestions */}
         {activeTab === 2 && (
           <Box>
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h5" sx={{ color: 'white', mb: 2, display: 'flex', alignItems: 'center' }}>
-                <Psychology sx={{ mr: 2, color: '#667eea' }} />
-                Real AI-Powered Music Discovery
-              </Typography>
-              
-              <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
-                <Chip 
-                  label="🤖 Real AI Engine" 
-                  sx={{ bgcolor: '#4caf50', color: 'white', fontWeight: 'bold' }}
-                />
-                <Chip 
-                  label="🧠 Hugging Face Models" 
-                  sx={{ bgcolor: '#667eea', color: 'white' }}
-                />
-                <Chip 
-                  label="🎯 Semantic Analysis" 
-                  sx={{ bgcolor: '#ff9800', color: 'white' }}
-                />
-              </Stack>
-              
-              {/* AI Profile Enhancement Card */}
-              {aiSuggestions && (
-                <Card sx={{ bgcolor: '#1a1a1a', mb: 3, border: '1px solid #667eea' }}>
+            {/* Modern Stat Cards */}
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              {/* Tracks Uploaded */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ background: 'linear-gradient(135deg, #667eea 60%, #764ba2 100%)', color: 'white', boxShadow: 3, transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.04)' } }}>
                   <CardContent>
-                    <Typography variant="h6" sx={{ color: 'white', mb: 2, display: 'flex', alignItems: 'center' }}>
-                      <Lightbulb sx={{ mr: 1, color: '#ffd700' }} />
-                      AI Profile Enhancement Suggestions
-                      {loadingAI && <CircularProgress size={20} sx={{ ml: 2 }} />}
-                    </Typography>
-                    
-                    {aiSuggestions.bio && aiSuggestions.bio.length > 0 && (
-                      <Box sx={{ mb: 3 }}>
-                        <Typography variant="subtitle2" sx={{ color: '#667eea', mb: 1 }}>
-                          Bio Suggestions:
-                        </Typography>
-                        <Stack spacing={1}>
-                          {aiSuggestions.bio.slice(0, 3).map((suggestion, index) => (
-                            <Box key={index} sx={{ 
-                              p: 2, 
-                              bgcolor: '#2a2a2a', 
-                              borderRadius: 1,
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center'
-                            }}>
-                              <Typography variant="body2" sx={{ color: '#ccc', flex: 1 }}>
-                                "{suggestion}"
-                              </Typography>
-                              <Button
-                                size="small"
-                                startIcon={<AutoAwesome />}
-                                onClick={() => applyAIBioSuggestion(suggestion)}
-                                sx={{ color: '#667eea', ml: 2 }}
-                              >
-                                Apply
-                              </Button>
-                            </Box>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-
-                    {aiSuggestions.genres && aiSuggestions.genres.length > 0 && (
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" sx={{ color: '#667eea', mb: 1 }}>
-                          Your Musical DNA:
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                          {aiSuggestions.genres.map((genre, index) => (
-                            <Chip
-                              key={index}
-                              label={genre}
-                              size="small"
-                              sx={{ bgcolor: '#667eea', color: 'white' }}
-                            />
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-
-                    {aiSuggestions.insights && (
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <MusicNote sx={{ fontSize: 36, color: 'white' }} />
                       <Box>
-                        <Typography variant="subtitle2" sx={{ color: '#4caf50', mb: 1 }}>
-                          AI Insights:
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#ccc' }}>
-                          Musical Style: {aiSuggestions.style} • 
-                          Strengths: {aiSuggestions.insights.strengths?.join(', ')}
-                        </Typography>
+                        <Tooltip title="Tracks you have uploaded">
+                          <Typography variant="h6">{stats.tracksUploaded}</Typography>
+                        </Tooltip>
+                        <Typography variant="body2">Tracks Uploaded</Typography>
                       </Box>
-                    )}
+                    </Stack>
                   </CardContent>
                 </Card>
-              )}
-            </Box>
-
-            {/* AI Recommendations Component */}
-            <AIRecommendations />
+              </Grid>
+              {/* Total Plays */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ background: 'linear-gradient(135deg, #43cea2 60%, #185a9d 100%)', color: 'white', boxShadow: 3, transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.04)' } }}>
+                  <CardContent>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <BarChart sx={{ fontSize: 36, color: 'white' }} />
+                      <Box>
+                        <Tooltip title="Total number of plays on your tracks">
+                          <Typography variant="h6">{stats.totalPlays}</Typography>
+                        </Tooltip>
+                        <Typography variant="body2">Total Plays</Typography>
+                        <LinearProgress variant="determinate" value={Math.min(stats.totalPlays / 100, 100)} sx={{ mt: 1, height: 6, borderRadius: 3, bgcolor: '#333' }} />
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+              {/* Total Likes */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ background: 'linear-gradient(135deg, #ff5858 60%, #f09819 100%)', color: 'white', boxShadow: 3, transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.04)' } }}>
+                  <CardContent>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <Star sx={{ fontSize: 36, color: 'white' }} />
+                      <Box>
+                        <Tooltip title="Total likes received on your tracks">
+                          <Typography variant="h6">{stats.totalLikes}</Typography>
+                        </Tooltip>
+                        <Typography variant="body2">Total Likes</Typography>
+                        <LinearProgress variant="determinate" value={Math.min(stats.totalLikes / 100, 100)} sx={{ mt: 1, height: 6, borderRadius: 3, bgcolor: '#333' }} />
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+              {/* Followers */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ background: 'linear-gradient(135deg, #43cea2 60%, #667eea 100%)', color: 'white', boxShadow: 3, transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.04)' } }}>
+                  <CardContent>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <People sx={{ fontSize: 36, color: 'white' }} />
+                      <Box>
+                        <Tooltip title="People following you">
+                          <Typography variant="h6">{stats.followers}</Typography>
+                        </Tooltip>
+                        <Typography variant="body2">Followers</Typography>
+                        <LinearProgress variant="determinate" value={Math.min(stats.followers / 100, 100)} sx={{ mt: 1, height: 6, borderRadius: 3, bgcolor: '#333' }} />
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+              {/* Following */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ background: 'linear-gradient(135deg, #f7971e 60%, #ffd200 100%)', color: 'white', boxShadow: 3, transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.04)' } }}>
+                  <CardContent>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <People sx={{ fontSize: 36, color: 'white', opacity: 0.7 }} />
+                      <Box>
+                        <Tooltip title="People you are following">
+                          <Typography variant="h6">{stats.following}</Typography>
+                        </Tooltip>
+                        <Typography variant="body2">Following</Typography>
+                        <LinearProgress variant="determinate" value={Math.min(stats.following / 100, 100)} sx={{ mt: 1, height: 6, borderRadius: 3, bgcolor: '#333' }} />
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+              {/* Playlists Created */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ background: 'linear-gradient(135deg, #667eea 60%, #43cea2 100%)', color: 'white', boxShadow: 3, transition: 'transform 0.2s', '&:hover': { transform: 'scale(1.04)' } }}>
+                  <CardContent>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                      <QueueMusic sx={{ fontSize: 36, color: 'white' }} />
+                      <Box>
+                        <Tooltip title="Playlists you have created">
+                          <Typography variant="h6">{stats.playlistsCreated}</Typography>
+                        </Tooltip>
+                        <Typography variant="body2">Playlists Created</Typography>
+                        <LinearProgress variant="determinate" value={Math.min(stats.playlistsCreated / 100, 100)} sx={{ mt: 1, height: 6, borderRadius: 3, bgcolor: '#333' }} />
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+            {/* AI Profile Enhancement Card */}
+            {aiSuggestions && (
+              <Card sx={{ bgcolor: 'linear-gradient(135deg, #1a1a1a 80%, #667eea 100%)', mb: 3, border: '1px solid #667eea', boxShadow: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ color: 'white', mb: 2, display: 'flex', alignItems: 'center' }}>
+                    AI Profile Enhancement Suggestions
+                  </Typography>
+                  {aiSuggestions.bio && aiSuggestions.bio.length > 0 && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" sx={{ color: '#667eea', mb: 1 }}>
+                        Bio Suggestions:
+                      </Typography>
+                      <Stack spacing={1}>
+                        {aiSuggestions.bio.slice(0, 3).map((suggestion, index) => (
+                          <Box key={index} sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body2" sx={{ color: '#ccc', flex: 1 }}>
+                              "{suggestion}"
+                            </Typography>
+                            <Button size="small" startIcon={<AutoAwesome />} onClick={() => applyAIBioSuggestion(suggestion)} sx={{ color: '#667eea', ml: 2 }}>
+                              Apply
+                            </Button>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {aiSuggestions.genres && aiSuggestions.genres.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ color: '#667eea', mb: 1 }}>
+                        Your Musical DNA:
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {aiSuggestions.genres.map((genre, index) => (
+                          <Chip key={index} label={genre} size="small" sx={{ bgcolor: '#667eea', color: 'white' }} />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {aiSuggestions.insights && (
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ color: '#4caf50', mb: 1 }}>
+                        AI Insights:
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#ccc' }}>
+                        Musical Style: {aiSuggestions.style} • Strengths: {aiSuggestions.insights.strengths?.join(', ')}
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </Box>
         )}
 
-        {/* Analytics Tab - Enhanced with AI insights */}
-        {activeTab === 3 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={8}>
-              <Card sx={{ bgcolor: '#1e1e1e', borderRadius: '12px' }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ color: 'white', mb: 3, display: 'flex', alignItems: 'center' }}>
-                    <Analytics sx={{ mr: 2, color: '#667eea' }} />
-                    Performance Overview
-                    <Chip 
-                      label="AI Enhanced" 
-                      size="small" 
-                      sx={{ ml: 2, bgcolor: '#667eea', color: 'white' }}
-                    />
-                  </Typography>
-                  
-                  <Grid container spacing={3}>
-                    <Grid item xs={6} md={3}>
-                      <Box textAlign="center" sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 2 }}>
-                        <TrendingUp sx={{ fontSize: 40, color: '#4caf50', mb: 1 }} />
-                        <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
-                          {formatNumberCompact(stats.totalPlays)}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#ccc' }}>
-                          Total Plays
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={Math.min((stats.totalPlays / 1000) * 100, 100)} 
-                          sx={{ mt: 1, bgcolor: '#1a1a1a', '& .MuiLinearProgress-bar': { bgcolor: '#4caf50' } }}
-                        />
-                      </Box>
-                    </Grid>
-                    
-                    <Grid item xs={6} md={3}>
-                      <Box textAlign="center" sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 2 }}>
-                        <Star sx={{ fontSize: 40, color: '#ff9800', mb: 1 }} />
-                        <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
-                          {stats.totalLikes}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#ccc' }}>
-                          Total Likes
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={Math.min((stats.totalLikes / 100) * 100, 100)} 
-                          sx={{ mt: 1, bgcolor: '#1a1a1a', '& .MuiLinearProgress-bar': { bgcolor: '#ff9800' } }}
-                        />
-                      </Box>
-                    </Grid>
 
-                    <Grid item xs={6} md={3}>
-                      <Box textAlign="center" sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 2 }}>
-                        <MusicNote sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
-                        <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
-                          {stats.tracksUploaded}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#ccc' }}>
-                          Tracks
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={Math.min((stats.tracksUploaded / 50) * 100, 100)} 
-                          sx={{ mt: 1, bgcolor: '#1a1a1a', '& .MuiLinearProgress-bar': { bgcolor: '#667eea' } }}
-                        />
-                      </Box>
-                    </Grid>
-
-                    <Grid item xs={6} md={3}>
-                      <Box textAlign="center" sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 2 }}>
-                        <People sx={{ fontSize: 40, color: '#9c27b0', mb: 1 }} />
-                        <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
-                          {stats.followers}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#ccc' }}>
-                          Followers
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={Math.min((stats.followers / 1000) * 100, 100)} 
-                          sx={{ mt: 1, bgcolor: '#1a1a1a', '& .MuiLinearProgress-bar': { bgcolor: '#9c27b0' } }}
-                        />
-                      </Box>
-                    </Grid>
-                  </Grid>
-
-                  {/* AI Growth Insights */}
-                  <Box sx={{ mt: 4, p: 3, bgcolor: 'rgba(102, 126, 234, 0.1)', borderRadius: 2, border: '1px solid #667eea' }}>
-                    <Typography variant="h6" sx={{ color: '#667eea', mb: 2, display: 'flex', alignItems: 'center' }}>
-                      <Psychology sx={{ mr: 1 }} />
-                      AI Growth Insights
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#ccc', mb: 2 }}>
-                      Based on your music and engagement patterns, here are AI-powered insights:
-                    </Typography>
-                    
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
-                        <Box sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 1 }}>
-                          <Typography variant="subtitle2" sx={{ color: '#4caf50', mb: 1 }}>
-                            🎯 Engagement Rate
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#ccc' }}>
-                            {stats.tracksUploaded > 0 
-                              ? `${Math.round((stats.totalPlays / stats.tracksUploaded) * 100) / 100} plays per track`
-                              : 'Upload tracks to see insights'
-                            }
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      
-                      <Grid item xs={12} md={6}>
-                        <Box sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 1 }}>
-                          <Typography variant="subtitle2" sx={{ color: '#ff9800', mb: 1 }}>
-                            📈 Growth Potential
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#ccc' }}>
-                            {stats.tracksUploaded < 5 
-                              ? 'Upload more tracks to increase discovery'
-                              : 'Great catalog! Focus on promotion'
-                            }
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Card sx={{ bgcolor: '#1e1e1e', borderRadius: '12px' }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ color: 'white', mb: 3 }}>
-                    AI Recommendations
-                  </Typography>
-                  
-                  <Stack spacing={2}>
-                    <Box sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" sx={{ color: '#667eea', mb: 1 }}>
-                        🎵 Next Actions
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#ccc', fontSize: '0.875rem' }}>
-                        {stats.tracksUploaded === 0 
-                          ? 'Upload your first track to get started'
-                          : stats.tracksUploaded < 3
-                          ? 'Upload 2-3 more tracks to build your catalog'
-                          : 'Create playlists to organize your music'
-                        }
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" sx={{ color: '#4caf50', mb: 1 }}>
-                        🎯 Audience Growth
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#ccc', fontSize: '0.875rem' }}>
-                        {stats.followers < 10
-                          ? 'Share your music to gain first followers'
-                          : 'Engage with other artists to grow your network'
-                        }
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ p: 2, bgcolor: '#2a2a2a', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" sx={{ color: '#ff9800', mb: 1 }}>
-                        💡 AI Tip
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#ccc', fontSize: '0.875rem' }}>
-                        Add detailed track descriptions and tags to improve discoverability
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
       </Box>
 
       {/* Recently Played Section */}
@@ -1221,28 +1097,17 @@ const Profile = () => {
           <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2, color: 'white' }}>
             Recently Played
           </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'row', gap: 2, flexWrap: 'wrap' }}>
+          <Grid container spacing={2}>
             {recentlyPlayed.slice(0, 8).map((track) => (
-              <Tooltip key={track.id} title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                <div style={{ minWidth: 220, flex: '1 0 220px' }}>
-                  <Card sx={{ bgcolor: '#23272f', color: 'white' }}>
-                    <CardContent>
-                      <Typography variant="subtitle1" noWrap>{track.title}</Typography>
-                      <Typography variant="body2" color="#aaa" noWrap>{track.artist}</Typography>
-                      <Typography variant="caption" color="#aaa">
-                        {formatPlays(track.play_count || 0)}
-                      </Typography>
-                    </CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1 }}>
-                      <IconButton onClick={() => playTrack(track)} sx={{ color: '#1DB954' }}>
-                        <PlayArrow />
-                      </IconButton>
-                    </Box>
-                  </Card>
-                </div>
-              </Tooltip>
+              <Grid item xs={12} sm={6} md={3} key={track.id}>
+                <TrackCard
+                  track={track}
+                  onPlay={() => playTrack(track)}
+                  showActions={true}
+                />
+              </Grid>
             ))}
-          </Box>
+          </Grid>
         </Box>
       )}
       
@@ -1267,144 +1132,182 @@ const Profile = () => {
         </Alert>
       </Snackbar>
 
-      {/* Avatar Upload Dialog */}
-      <AvatarUploadDialog
-        open={avatarUploadDialog}
-        onClose={() => setAvatarUploadDialog(false)}
-        currentAvatar={profile.avatar_url}
-        onAvatarUpdate={handleAvatarUpdate}
-      />
 
-      {/* Password Change Dialog */}
-      <Dialog open={passwordDialog} onClose={() => setPasswordDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: '#1e1e1e', color: 'white' }}>
-          Change Password
-        </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1e1e1e', color: 'white', pt: 2 }}>
-          <CleanInput
+      {/* Avatar Upload Dialog */}
+      <AvatarUploadDialog open={avatarUploadDialog} onClose={() => setAvatarUploadDialog(false)} />
+
+      {/* Password Dialog */}
+      <Dialog
+        open={passwordDialog}
+        onClose={() => setPasswordDialog(false)}
+        maxWidth="xs"
+        fullWidth
+        transitionDuration={400}
+        PaperProps={{
+          sx: {
+            background: 'linear-gradient(135deg, rgba(40,40,60,0.95) 0%, rgba(60,60,80,0.95) 100%)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            borderRadius: '20px',
+            border: '1.5px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 8px 40px 0 rgba(102,126,234,0.18)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: 'white', fontWeight: 700, fontSize: '1.3rem', pb: 1 }}>Change Password</DialogTitle>
+        <DialogContent>
+          <TextField
             label="Current Password"
             type="password"
+            fullWidth
+            sx={{ mb: 2 }}
             value={passwordForm.currentPassword}
-            onChange={(event) => handlePasswordFieldChange('currentPassword', event)}
+            onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
           />
-          <CleanInput
+          <TextField
             label="New Password"
             type="password"
+            fullWidth
+            sx={{ mb: 2 }}
             value={passwordForm.newPassword}
-            onChange={(event) => handlePasswordFieldChange('newPassword', event)}
+            onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
           />
-          <CleanInput
+          <TextField
             label="Confirm New Password"
             type="password"
+            fullWidth
+            sx={{ mb: 2 }}
             value={passwordForm.confirmPassword}
-            onChange={(event) => handlePasswordFieldChange('confirmPassword', event)}
+            onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
           />
         </DialogContent>
-        <DialogActions sx={{ bgcolor: '#1e1e1e' }}>
-          <Button onClick={() => setPasswordDialog(false)} sx={{ color: '#ccc' }}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handlePasswordChange} 
-            variant="contained"
-            disabled={saving}
-            sx={{ 
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              '&:hover': { background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)' }
-            }}
-          >
-            {saving ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Update Password'}
-          </Button>
+        <DialogActions sx={{ p: 3, justifyContent: 'center', gap: 2 }}>
+          <Button onClick={() => setPasswordDialog(false)} sx={{ color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: 2, px: 3, fontWeight: 500, boxShadow: '0 2px 8px 0 rgba(102,126,234,0.10)', transition: 'background 0.2s', '&:hover': { background: 'rgba(255,255,255,0.18)' } }}>Cancel</Button>
+          <Button onClick={handleChangePassword} variant="contained" sx={{ bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', borderRadius: 2, px: 3, fontWeight: 600, boxShadow: '0 4px 16px 0 rgba(102,126,234,0.18)', transition: 'background 0.2s', '&:hover': { bgcolor: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)' } }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Notifications Dialog */}
+      <Dialog
+        open={notificationsDialog}
+        onClose={() => setNotificationsDialog(false)}
+        maxWidth="xs"
+        fullWidth
+        transitionDuration={400}
+        PaperProps={{
+          sx: {
+            background: 'linear-gradient(135deg, rgba(40,40,60,0.95) 0%, rgba(60,60,80,0.95) 100%)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            borderRadius: '20px',
+            border: '1.5px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 8px 40px 0 rgba(102,126,234,0.18)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: 'white', fontWeight: 700, fontSize: '1.3rem', pb: 1 }}>Notification Settings</DialogTitle>
+        <DialogContent>
+          <FormGroup>
+            <FormControlLabel control={<Switch checked={notificationSettings.emailNotifications} onChange={e => setNotificationSettings({ ...notificationSettings, emailNotifications: e.target.checked })} />} label="Email Notifications" />
+            <FormControlLabel control={<Switch checked={notificationSettings.pushNotifications} onChange={e => setNotificationSettings({ ...notificationSettings, pushNotifications: e.target.checked })} />} label="Push Notifications" />
+            <FormControlLabel control={<Switch checked={notificationSettings.trackLikes} onChange={e => setNotificationSettings({ ...notificationSettings, trackLikes: e.target.checked })} />} label="Track Likes" />
+            <FormControlLabel control={<Switch checked={notificationSettings.newFollowers} onChange={e => setNotificationSettings({ ...notificationSettings, newFollowers: e.target.checked })} />} label="New Followers" />
+            <FormControlLabel control={<Switch checked={notificationSettings.roomInvites} onChange={e => setNotificationSettings({ ...notificationSettings, roomInvites: e.target.checked })} />} label="Room Invites" />
+            <FormControlLabel control={<Switch checked={notificationSettings.trackComments} onChange={e => setNotificationSettings({ ...notificationSettings, trackComments: e.target.checked })} />} label="Track Comments" />
+          </FormGroup>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, justifyContent: 'center', gap: 2 }}>
+          <Button onClick={() => setNotificationsDialog(false)} sx={{ color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: 2, px: 3, fontWeight: 500, boxShadow: '0 2px 8px 0 rgba(102,126,234,0.10)', transition: 'background 0.2s', '&:hover': { background: 'rgba(255,255,255,0.18)' } }}>Cancel</Button>
+          <Button onClick={handleSaveNotifications} variant="contained" sx={{ bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', borderRadius: 2, px: 3, fontWeight: 600, boxShadow: '0 4px 16px 0 rgba(102,126,234,0.18)', transition: 'background 0.2s', '&:hover': { bgcolor: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)' } }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Privacy Dialog */}
+      <Dialog
+        open={privacyDialog}
+        onClose={() => setPrivacyDialog(false)}
+        maxWidth="xs"
+        fullWidth
+        transitionDuration={400}
+        PaperProps={{
+          sx: {
+            background: 'linear-gradient(135deg, rgba(40,40,60,0.95) 0%, rgba(60,60,80,0.95) 100%)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            borderRadius: '20px',
+            border: '1.5px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 8px 40px 0 rgba(102,126,234,0.18)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: 'white', fontWeight: 700, fontSize: '1.3rem', pb: 1 }}>Privacy Settings</DialogTitle>
+        <DialogContent>
+          <FormControl component="fieldset" sx={{ width: '100%' }}>
+            <FormLabel component="legend" sx={{ color: '#fff', mb: 2 }}>Profile Visibility</FormLabel>
+            <RadioGroup
+              value={privacySettings.profileVisibility}
+              onChange={e => setPrivacySettings({ ...privacySettings, profileVisibility: e.target.value })}
+              row
+            >
+              <FormControlLabel value="public" control={<Radio />} label="Public" />
+              <FormControlLabel value="private" control={<Radio />} label="Private" />
+              <FormControlLabel value="friends" control={<Radio />} label="Friends Only" />
+            </RadioGroup>
+            <FormGroup sx={{ mt: 2 }}>
+              <FormControlLabel control={<Switch checked={privacySettings.showEmail} onChange={e => setPrivacySettings({ ...privacySettings, showEmail: e.target.checked })} />} label="Show Email" />
+              <FormControlLabel control={<Switch checked={privacySettings.showLocation} onChange={e => setPrivacySettings({ ...privacySettings, showLocation: e.target.checked })} />} label="Show Location" />
+              <FormControlLabel control={<Switch checked={privacySettings.allowDirectMessages} onChange={e => setPrivacySettings({ ...privacySettings, allowDirectMessages: e.target.checked })} />} label="Allow Direct Messages" />
+              <FormControlLabel control={<Switch checked={privacySettings.showOnlineStatus} onChange={e => setPrivacySettings({ ...privacySettings, showOnlineStatus: e.target.checked })} />} label="Show Online Status" />
+              <FormControlLabel control={<Switch checked={privacySettings.showListeningActivity} onChange={e => setPrivacySettings({ ...privacySettings, showListeningActivity: e.target.checked })} />} label="Show Listening Activity" />
+            </FormGroup>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, justifyContent: 'center', gap: 2 }}>
+          <Button onClick={() => setPrivacyDialog(false)} sx={{ color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: 2, px: 3, fontWeight: 500, boxShadow: '0 2px 8px 0 rgba(102,126,234,0.10)', transition: 'background 0.2s', '&:hover': { background: 'rgba(255,255,255,0.18)' } }}>Cancel</Button>
+          <Button onClick={handleSavePrivacy} variant="contained" sx={{ bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', borderRadius: 2, px: 3, fontWeight: 600, boxShadow: '0 4px 16px 0 rgba(102,126,234,0.18)', transition: 'background 0.2s', '&:hover': { bgcolor: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)' } }}>Save</Button>
         </DialogActions>
       </Dialog>
 
       {/* AI Analysis Dialog */}
-      <Dialog 
-        open={aiAnalysisDialog} 
-        onClose={() => setAiAnalysisDialog(false)} 
-        maxWidth="md" 
+      <Dialog
+        open={aiAnalysisDialog}
+        onClose={() => setAiAnalysisDialog(false)}
+        maxWidth="sm"
         fullWidth
+        transitionDuration={400}
+        PaperProps={{
+          sx: {
+            background: 'linear-gradient(135deg, rgba(40,40,60,0.95) 0%, rgba(60,60,80,0.95) 100%)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            borderRadius: '20px',
+            border: '1.5px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 8px 40px 0 rgba(102,126,234,0.18)',
+          }
+        }}
       >
-        <DialogTitle sx={{ bgcolor: '#1e1e1e', color: 'white' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Psychology sx={{ mr: 2, color: '#667eea' }} />
-            AI Track Analysis Dashboard
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1e1e1e', color: 'white', pt: 2 }}>
-          <Typography variant="body1" sx={{ mb: 3 }}>
-            Let our AI analyze your tracks to provide insights on genre, mood, energy levels, and suggestions for improvement.
-          </Typography>
-          
-          {userTracks.length > 0 ? (
+        <DialogTitle sx={{ color: 'white', fontWeight: 700, fontSize: '1.3rem', pb: 1 }}>AI Track Analysis</DialogTitle>
+        <DialogContent>
+          {latestAIAnalysis ? (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Select tracks to analyze:
-              </Typography>
-              <Stack spacing={2} sx={{ maxHeight: 300, overflow: 'auto' }}>
-                {userTracks.map((track) => (
-                  <Box 
-                    key={track.id}
-                    sx={{ 
-                      p: 2, 
-                      bgcolor: '#2a2a2a', 
-                      borderRadius: 1,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}
-                  >
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ color: 'white' }}>
-                        {track.title}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#ccc' }}>
-                        {track.genre} • {formatPlays(track.play_count || 0)}
-                      </Typography>
-                      {track.ai_tags && (
-                        <Chip
-                          size="small"
-                          label="AI Analyzed"
-                          sx={{ bgcolor: '#4caf50', color: 'white', mt: 1 }}
-                        />
-                      )}
-                    </Box>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<Psychology />}
-                      onClick={() => analyzeTrackWithAI(track)}
-                      disabled={loadingAI}
-                      sx={{
-                        borderColor: '#667eea',
-                        color: '#667eea',
-                        '&:hover': { borderColor: '#764ba2', color: '#764ba2' }
-                      }}
-                    >
-                      {loadingAI ? 'Analyzing...' : track.ai_tags ? 'Re-analyze' : 'Analyze'}
-                    </Button>
-                  </Box>
+              <Typography variant="h6" sx={{ color: '#667eea', mb: 2 }}>AI Analysis Result</Typography>
+              <Typography variant="body2" sx={{ color: '#fff', mb: 2 }}>{latestAIAnalysis.summary}</Typography>
+              <Typography variant="subtitle2" sx={{ color: '#fff', mb: 1 }}>Key Insights:</Typography>
+              <List>
+                {latestAIAnalysis.insights?.map((insight, idx) => (
+                  <ListItem key={idx}>
+                    <ListItemText primary={insight} />
+                  </ListItem>
                 ))}
-              </Stack>
+              </List>
             </Box>
           ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <MusicNote sx={{ fontSize: 64, color: '#ccc', mb: 2 }} />
-              <Typography variant="h6" sx={{ color: '#ccc' }}>
-                No tracks to analyze yet
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#888' }}>
-                Upload some tracks first to get AI insights
-              </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+              <CircularProgress color="secondary" />
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ bgcolor: '#1e1e1e' }}>
-          <Button onClick={() => setAiAnalysisDialog(false)} sx={{ color: '#ccc' }}>
-            Close
-          </Button>
+        <DialogActions sx={{ p: 3, justifyContent: 'center', gap: 2 }}>
+          <Button onClick={() => setAiAnalysisDialog(false)} sx={{ color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: 2, px: 3, fontWeight: 500, boxShadow: '0 2px 8px 0 rgba(102,126,234,0.10)', transition: 'background 0.2s', '&:hover': { background: 'rgba(255,255,255,0.18)' } }}>Close</Button>
         </DialogActions>
       </Dialog>
+
     </Container>
   );
 };

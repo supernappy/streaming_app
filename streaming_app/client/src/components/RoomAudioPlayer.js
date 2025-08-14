@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSnackbar } from 'notistack';
 import { formatPlays } from '../utils/format';
 import { usePlayer } from '../contexts/PlayerContext';
-import { Chip } from '@mui/material';
 import {
   Box,
   Paper,
@@ -10,7 +10,6 @@ import {
   Slider,
   List,
   ListItem,
-  ListItemText,
   ListItemAvatar,
   Avatar,
   Chip,
@@ -33,7 +32,8 @@ import {
 } from '@mui/icons-material';
 
 const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
-  const { currentTrack, isPlaying, playTrack, togglePlayPause, currentTime, duration, seek, changeVolume } = usePlayer();
+  const { enqueueSnackbar } = useSnackbar();
+  // Remove showPlayer state; always show player if a track is playing
   const [volume, setVolume] = useState(0.7);
   const [localCurrentTrack, setLocalCurrentTrack] = useState(null);
   const [displayTracks, setDisplayTracks] = useState(tracks);
@@ -41,13 +41,16 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
   const [newTrackTitle, setNewTrackTitle] = useState('');
   const [newTrackArtist, setNewTrackArtist] = useState('');
   const [newTrackUrl, setNewTrackUrl] = useState('');
+
   const audioRef = useRef(null);
 
   useEffect(() => {
     setDisplayTracks(tracks);
-    if (tracks.length > 0 && !localCurrentTrack) {
+    // If a track is playing globally, sync localCurrentTrack
+    if (currentTrack && currentTrack.id) {
+      setLocalCurrentTrack(currentTrack);
+    } else if (tracks.length > 0 && !localCurrentTrack) {
       setLocalCurrentTrack(tracks[0]);
-      // Don't auto play; wait for user action
     }
   }, [tracks, localCurrentTrack]);
 
@@ -114,22 +117,37 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
         artist: newTrackArtist.trim(),
         url: newTrackUrl.trim()
       };
-      
-      if (onAddTrack) {
-        await onAddTrack(trackData);
+      try {
+        if (onAddTrack) {
+          await onAddTrack(trackData);
+        }
+        enqueueSnackbar('Track added to queue!', { variant: 'success', autoHideDuration: 2000 });
+        // Reset form
+        setNewTrackTitle('');
+        setNewTrackArtist('');
+        setNewTrackUrl('');
+        setShowAddDialog(false);
+      } catch (err) {
+        enqueueSnackbar('Failed to add track.', { variant: 'error', autoHideDuration: 2000 });
       }
-      
-      // Reset form
-      setNewTrackTitle('');
-      setNewTrackArtist('');
-      setNewTrackUrl('');
-      setShowAddDialog(false);
+    } else {
+      enqueueSnackbar('Please fill in all fields.', { variant: 'warning', autoHideDuration: 2000 });
     }
   };
 
   if (!localCurrentTrack && tracks.length === 0) {
-    return (
-      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+      return (
+        <Paper elevation={6} sx={{
+          p: 3,
+          mb: 3,
+          background: 'rgba(255,255,255,0.18)',
+          backdropFilter: 'blur(18px) saturate(180%)',
+          borderRadius: 4,
+          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+          border: '1px solid rgba(255,255,255,0.18)',
+          position: 'relative',
+          overflow: 'visible'
+        }}>
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <MusicNote sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
           <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -160,91 +178,98 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
       {/* Current Track Info */}
       {localCurrentTrack && (
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <Avatar sx={{ width: 64, height: 64, mr: 2, bgcolor: 'primary.main' }}>
+          <Avatar sx={{ width: 72, height: 72, mr: 3, bgcolor: 'primary.main', boxShadow: '0 4px 16px 0 rgba(124,77,255,0.15)' }}>
             <MusicNote />
           </Avatar>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" component="div">
+            <Typography variant="h5" component="div" sx={{ fontWeight: 700, color: '#232526' }}>
               {localCurrentTrack.title}
             </Typography>
-            <Typography variant="subtitle1" color="text.secondary">
+            <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
               {localCurrentTrack.artist}
             </Typography>
-            <Chip 
-              label={formatPlays(localCurrentTrack.play_count ?? 0)} 
-              size="small" 
-              sx={{ mt: 0.5 }}
-            />
-            <Chip 
-              label="Now Playing" 
-              color="primary" 
-              size="small" 
-              sx={{ mt: 0.5 }}
-            />
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              <Chip 
+                label={formatPlays(localCurrentTrack.play_count ?? 0)} 
+                size="small" 
+                sx={{ background: 'rgba(124,77,255,0.10)', color: '#7c4dff' }}
+              />
+              <Chip 
+                label="Now Playing" 
+                color="primary" 
+                size="small" 
+                sx={{ background: 'linear-gradient(135deg, #7c4dff 0%, #b388ff 100%)', color: 'white' }}
+              />
+            </Box>
           </Box>
         </Box>
       )}
 
-      {/* Player Controls */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-        <IconButton 
-          onClick={handlePrevious} 
-          disabled={!currentTrack || tracks.length <= 1}
-        >
-          <SkipPrevious />
+      {/* Modernized Playback Controls */}
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        py: 2,
+        px: 2,
+        borderRadius: 3,
+        background: 'rgba(255,255,255,0.25)',
+        boxShadow: '0 2px 8px 0 rgba(124,77,255,0.10)',
+        mb: 2,
+        position: 'sticky',
+        top: 0,
+        zIndex: 2
+      }}>
+        <IconButton onClick={handlePrevious} sx={{ fontSize: 32, color: '#7c4dff', background: 'rgba(124,77,255,0.08)', borderRadius: 2, boxShadow: '0 2px 8px 0 rgba(124,77,255,0.10)', '&:hover': { background: 'rgba(124,77,255,0.18)' } }}>
+          <SkipPrevious fontSize="large" />
         </IconButton>
-        
-        <Tooltip title={isPlaying ? "Pause" : "Play"}>
-          <IconButton 
-                onClick={handlePlayPause} 
-                disabled={!localCurrentTrack}
-            sx={{ mx: 1, bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
-          >
-            {isPlaying ? <Pause /> : <PlayArrow />}
-          </IconButton>
-        </Tooltip>
-        
-        <IconButton 
-          onClick={handleNext} 
-          disabled={!currentTrack || tracks.length <= 1}
-        >
-          <SkipNext />
+        <IconButton onClick={handlePlayPause} sx={{ fontSize: 40, color: 'white', background: 'linear-gradient(135deg, #7c4dff 0%, #b388ff 100%)', borderRadius: 3, boxShadow: '0 4px 16px 0 rgba(124,77,255,0.15)', mx: 2, '&:hover': { background: 'linear-gradient(135deg, #b388ff 0%, #7c4dff 100%)' } }}>
+          {isPlaying ? <Pause fontSize="large" /> : <PlayArrow fontSize="large" />}
         </IconButton>
-      </Box>
-
-      {/* Progress Bar */}
-  {localCurrentTrack && (
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Typography variant="body2" sx={{ minWidth: 40 }}>
-            {formatTime(currentTime)}
-          </Typography>
+        <IconButton onClick={handleNext} sx={{ fontSize: 32, color: '#7c4dff', background: 'rgba(124,77,255,0.08)', borderRadius: 2, boxShadow: '0 2px 8px 0 rgba(124,77,255,0.10)', '&:hover': { background: 'rgba(124,77,255,0.18)' } }}>
+          <SkipNext fontSize="large" />
+        </IconButton>
+        {/* Volume Slider */}
+        <Box sx={{ display: 'flex', alignItems: 'center', ml: 3 }}>
+          <VolumeUp sx={{ color: '#7c4dff', mr: 1 }} />
           <Slider
-            size="small"
-            value={currentTime}
-            max={duration || 100}
-            onChange={handleSeek}
-            sx={{ mx: 2 }}
+            value={volume}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={handleVolumeChange}
+            sx={{ width: 120, color: '#7c4dff' }}
           />
-          <Typography variant="body2" sx={{ minWidth: 40 }}>
-            {formatTime(duration)}
-          </Typography>
         </Box>
-      )}
-
-      {/* Volume Control */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <VolumeUp sx={{ mr: 1 }} />
-        <Slider
-          size="small"
-          value={volume}
-          min={0}
-          max={1}
-          step={0.1}
-          onChange={handleVolumeChange}
-          sx={{ width: 100 }}
-        />
       </Box>
 
+      {/* Animated Progress Bar */}
+      <Box sx={{ width: '100%', mb: 2 }}>
+        <Slider
+          value={currentTime}
+          min={0}
+          max={duration || 1}
+          step={1}
+          onChange={handleSeek}
+          sx={{
+            color: '#7c4dff',
+            height: 8,
+            borderRadius: 4,
+            boxShadow: '0 2px 8px 0 rgba(124,77,255,0.10)',
+            '& .MuiSlider-thumb': {
+              width: 18,
+              height: 18,
+              background: 'linear-gradient(135deg, #7c4dff 0%, #b388ff 100%)',
+              boxShadow: '0 2px 8px 0 rgba(124,77,255,0.15)'
+            }
+          }}
+        />
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: -2, mb: 1 }}>
+          <Typography variant="caption" color="text.secondary">{formatTime(currentTime)}</Typography>
+          <Typography variant="caption" color="text.secondary">{formatTime(duration)}</Typography>
+        </Box>
+      </Box>
       {/* Queue/Playlist */}
   {tracks.length > 0 && (
         <Box>
@@ -269,7 +294,10 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
               <ListItem
                 key={track.id}
                 button
-                onClick={() => { setLocalCurrentTrack(track); playTrack(track, displayTracks || tracks); }}
+                onClick={() => {
+                  playTrack(track, displayTracks || tracks);
+                  // localCurrentTrack will sync via useEffect when global currentTrack updates
+                }}
                 selected={localCurrentTrack?.id === track.id}
                 sx={{
                   borderRadius: 1,
@@ -347,6 +375,6 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
       </Dialog>
     </Paper>
   );
-};
+}
 
 export default RoomAudioPlayer;

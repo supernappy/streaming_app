@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">streaming-app</string>
+    <string name="title_activity_main">streaming-app</string>
+    <string name="package_name">com.supernappy.streamingapp</string>
+    <string name="custom_url_scheme">com.supernappy.streamingapp</string>
+</resources>

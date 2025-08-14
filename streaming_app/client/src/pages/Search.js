@@ -23,8 +23,8 @@ import useSyncTrackCounts from '../hooks/useSyncTrackCounts';
 const Search = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q');
-  const [results, setResults] = useState({});
-  const [syncedTracks, setSyncedTracks] = useSyncTrackCounts([]);
+  const [results, setResults] = useState({ tracks: [], artists: [], albums: [] });
+  const [syncedTracks, setSyncedTracks] = useSyncTrackCounts(results.tracks);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const { playTrack, recentlyPlayed } = usePlayer ? usePlayer() : { playTrack: () => {}, recentlyPlayed: [] };
@@ -38,12 +38,21 @@ const Search = () => {
   const performSearch = async (searchQuery) => {
     setLoading(true);
     try {
-  const response = await axios.get(`/api/search?q=${encodeURIComponent(searchQuery)}`);
-  const newResults = response.data.results;
-  setResults(newResults);
-  setSyncedTracks(newResults?.tracks || []);
+      const response = await axios.get(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      // Debug: log the full raw response from backend
+      if (window && window.localStorage) {
+        window.localStorage.setItem('search_raw_response', JSON.stringify(response.data));
+      }
+      console.log('DEBUG: Raw backend response:', response.data);
+      const newResults = response.data.results || {};
+      setResults({
+        tracks: Array.isArray(newResults.tracks) ? newResults.tracks : [],
+        artists: Array.isArray(newResults.artists) ? newResults.artists : [],
+        albums: Array.isArray(newResults.albums) ? newResults.albums : [],
+      });
     } catch (error) {
       console.error('Search error:', error);
+  setResults({ tracks: [], artists: [], albums: [] });
     } finally {
       setLoading(false);
     }
@@ -96,7 +105,6 @@ const Search = () => {
           ))}
         </Tabs>
       </Box>
-
       {/* All Results */}
       {activeTab === 0 && (
         <Box>
@@ -108,15 +116,28 @@ const Search = () => {
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {syncedTracks.slice(0, 6).map((track) => (
-                  <Tooltip key={track.id} title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                    <div>
-                      <AudioPlayer 
-                        track={track} 
-                        onPlay={(track) => handlePlayTrack(track)}
-                        compact={true}
-                      />
-                    </div>
-                  </Tooltip>
+                  track.file_url && track.file_url.toLowerCase().endsWith('.mp4') ? (
+                    <Card key={track.id} sx={{ backgroundColor: '#1e1e1e', color: 'white', mb: 2 }}>
+                      <CardContent>
+                        <Typography variant="subtitle1">{track.title}</Typography>
+                        <Typography variant="body2" color="text.secondary">{track.artist}</Typography>
+                        <Typography variant="caption" color="text.secondary">Video</Typography>
+                        <Box sx={{ mt: 1 }}>
+                          <video src={track.file_url} controls style={{ width: '100%', maxWidth: 320, borderRadius: 8 }} />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Tooltip key={track.id} title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
+                      <div>
+                        <AudioPlayer 
+                          track={track} 
+                          onPlay={(track) => handlePlayTrack(track)}
+                          compact={true}
+                        />
+                      </div>
+                    </Tooltip>
+                  )
                 ))}
               </Box>
             </Box>
@@ -153,15 +174,28 @@ const Search = () => {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {syncedTracks && syncedTracks.length > 0 ? (
             syncedTracks.map((track) => (
-              <Tooltip key={track.id} title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                <div>
-                  <AudioPlayer 
-                    track={track} 
-                    onPlay={(track) => handlePlayTrack(track)}
-                    compact={true}
-                  />
-                </div>
-              </Tooltip>
+              track.file_url && track.file_url.toLowerCase().endsWith('.mp4') ? (
+                <Card key={track.id} sx={{ backgroundColor: '#1e1e1e', color: 'white', mb: 2 }}>
+                  <CardContent>
+                    <Typography variant="subtitle1">{track.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">{track.artist}</Typography>
+                    <Typography variant="caption" color="text.secondary">Video</Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <video src={track.file_url} controls style={{ width: '100%', maxWidth: 320, borderRadius: 8 }} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Tooltip key={track.id} title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
+                  <div>
+                    <AudioPlayer 
+                      track={track} 
+                      onPlay={(track) => handlePlayTrack(track)}
+                      compact={true}
+                    />
+                  </div>
+                </Tooltip>
+              )
             ))
           ) : (
             <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>

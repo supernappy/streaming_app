@@ -44,6 +44,7 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [connectedUsers, setConnectedUsers] = useState([]);
   const audioRef = useRef(null);
+  const videoRef = useRef(null);
   const syncTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -56,41 +57,41 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
     }
   }, [tracks, currentTrack]);
 
+  // Utility: is current track an MP4?
+  const isCurrentTrackMp4 = currentTrack && (currentTrack.file_url || currentTrack.url || '').toLowerCase().endsWith('.mp4');
+
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const media = isCurrentTrackMp4 ? videoRef.current : audioRef.current;
+    if (!media) return;
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
-    
+    const updateTime = () => setCurrentTime(media.currentTime);
+    const updateDuration = () => setDuration(media.duration);
     const handleLoadStart = () => {
-      console.log('🔄 Room audio: Load started for:', currentTrack?.title);
+      console.log('🔄 Room media: Load started for:', currentTrack?.title);
     };
-    
     const handleCanPlay = () => {
-      console.log('✅ Room audio: Can play:', currentTrack?.title);
+      console.log('✅ Room media: Can play:', currentTrack?.title);
     };
-    
     const handleError = (e) => {
-      console.error('❌ Room audio error:', e);
-      console.error('❌ Audio error for track:', currentTrack?.title);
-      console.error('❌ Audio src:', audio.src);
+      console.error('❌ Room media error:', e);
+      console.error('❌ Media error for track:', currentTrack?.title);
+      console.error('❌ Media src:', media.src);
     };
 
-    audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('loadstart', handleLoadStart);
-    audio.addEventListener('canplay', handleCanPlay);
-    audio.addEventListener('error', handleError);
+    media.addEventListener('timeupdate', updateTime);
+    media.addEventListener('loadedmetadata', updateDuration);
+    media.addEventListener('loadstart', handleLoadStart);
+    media.addEventListener('canplay', handleCanPlay);
+    media.addEventListener('error', handleError);
 
     return () => {
-      audio.removeEventListener('timeupdate', updateTime);
-      audio.removeEventListener('loadedmetadata', updateDuration);
-      audio.removeEventListener('loadstart', handleLoadStart);
-      audio.removeEventListener('canplay', handleCanPlay);
-      audio.removeEventListener('error', handleError);
+      media.removeEventListener('timeupdate', updateTime);
+      media.removeEventListener('loadedmetadata', updateDuration);
+      media.removeEventListener('loadstart', handleLoadStart);
+      media.removeEventListener('canplay', handleCanPlay);
+      media.removeEventListener('error', handleError);
     };
-  }, [currentTrack]);
+  }, [currentTrack, isCurrentTrackMp4]);
 
   // Socket connection and synchronization
   useEffect(() => {
@@ -144,62 +145,70 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
   }, [room?.id, isHost]);
 
   // Socket event handlers
+  const getMediaRef = () => (isCurrentTrackMp4 ? videoRef : audioRef);
+
   const handlePlaybackStateSync = (data) => {
     console.log('🔄 Syncing playback state:', data);
     setIsSyncing(true);
-    
     if (data.currentTrackId && tracks.length > 0) {
       const track = tracks.find(t => t.id === data.currentTrackId);
       if (track && track !== currentTrack) {
         setCurrentTrack(track);
       }
     }
-    
-    if (audioRef.current) {
-      audioRef.current.currentTime = data.currentTime || 0;
-      audioRef.current.volume = (data.volume || 0.7) / 100;
-      
+    const media = getMediaRef().current;
+    if (media) {
+      media.currentTime = data.currentTime || 0;
+      media.volume = (data.volume || 0.7) / 100;
       if (data.isPlaying && !isPlaying) {
-        audioRef.current.play().catch(console.error);
+        media.play().catch(console.error);
         setIsPlaying(true);
       } else if (!data.isPlaying && isPlaying) {
-        audioRef.current.pause();
+        media.pause();
         setIsPlaying(false);
       }
     }
-    
     setTimeout(() => setIsSyncing(false), 500);
   };
 
   const handleSyncPlay = (data) => {
     console.log('▶️ Received sync play command:', data);
-    if (!isHost && audioRef.current) {
-      setIsSyncing(true);
-      audioRef.current.currentTime = data.currentTime || 0;
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-        setTimeout(() => setIsSyncing(false), 500);
-      }).catch(console.error);
+    if (!isHost) {
+      const media = getMediaRef().current;
+      if (media) {
+        setIsSyncing(true);
+        media.currentTime = data.currentTime || 0;
+        media.play().then(() => {
+          setIsPlaying(true);
+          setTimeout(() => setIsSyncing(false), 500);
+        }).catch(console.error);
+      }
     }
   };
 
   const handleSyncPause = (data) => {
     console.log('⏸️ Received sync pause command:', data);
-    if (!isHost && audioRef.current) {
-      setIsSyncing(true);
-      audioRef.current.currentTime = data.currentTime || 0;
-      audioRef.current.pause();
-      setIsPlaying(false);
-      setTimeout(() => setIsSyncing(false), 500);
+    if (!isHost) {
+      const media = getMediaRef().current;
+      if (media) {
+        setIsSyncing(true);
+        media.currentTime = data.currentTime || 0;
+        media.pause();
+        setIsPlaying(false);
+        setTimeout(() => setIsSyncing(false), 500);
+      }
     }
   };
 
   const handleSyncSeek = (data) => {
     console.log('⏩ Received sync seek command:', data);
-    if (!isHost && audioRef.current) {
-      setIsSyncing(true);
-      audioRef.current.currentTime = data.currentTime;
-      setTimeout(() => setIsSyncing(false), 500);
+    if (!isHost) {
+      const media = getMediaRef().current;
+      if (media) {
+        setIsSyncing(true);
+        media.currentTime = data.currentTime;
+        setTimeout(() => setIsSyncing(false), 500);
+      }
     }
   };
 
@@ -211,15 +220,16 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
         setIsSyncing(true);
         setCurrentTrack(track);
         setCurrentTime(0);
-        
-        if (data.autoPlay && audioRef.current) {
+        if (data.autoPlay) {
           setTimeout(() => {
-            audioRef.current.play().then(() => {
-              setIsPlaying(true);
-            }).catch(console.error);
+            const media = getMediaRef().current;
+            if (media) {
+              media.play().then(() => {
+                setIsPlaying(true);
+              }).catch(console.error);
+            }
           }, 100);
         }
-        
         setTimeout(() => setIsSyncing(false), 500);
       }
     }
@@ -227,9 +237,12 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
 
   const handleSyncVolumeChange = (data) => {
     console.log('🔊 Received sync volume change:', data);
-    if (!isHost && audioRef.current) {
-      setVolume(data.volume);
-      audioRef.current.volume = data.volume / 100;
+    if (!isHost) {
+      const media = getMediaRef().current;
+      if (media) {
+        setVolume(data.volume);
+        media.volume = data.volume / 100;
+      }
     }
   };
 
@@ -244,27 +257,24 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
   };
 
   const handlePlayPause = async () => {
-    const audio = audioRef.current;
-    if (!audio || isSyncing) return;
-    
+    const media = getMediaRef().current;
+    if (!media || isSyncing) return;
     try {
       if (isPlaying) {
         // Pause
-        audio.pause();
+        media.pause();
         setIsPlaying(false);
-        
         // If host, sync pause with all participants
         if (isHost) {
-          socketService.hostPause(audio.currentTime);
+          socketService.hostPause(media.currentTime);
         }
       } else {
         // Play
-        await audio.play();
+        await media.play();
         setIsPlaying(true);
-        
         // If host, sync play with all participants
         if (isHost && currentTrack) {
-          socketService.hostPlay(currentTrack.id, audio.currentTime);
+          socketService.hostPlay(currentTrack.id, media.currentTime);
         }
       }
     } catch (error) {
@@ -274,24 +284,23 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
 
   const handleTrackClick = (track, index) => {
     console.log('Track clicked:', track.title, 'Index:', index);
-    
     if (isSyncing) {
       console.log('Ignoring track click during sync');
       return;
     }
-    
     setCurrentTrack(track);
     setCurrentTime(0);
-    
     // If host, sync track change with all participants
     if (isHost) {
       socketService.hostChangeTrack(track.id, true); // autoPlay = true
-    } else if (audioRef.current) {
-      // Non-host users can still change tracks locally (will be overridden by host sync)
-      audioRef.current.load();
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-      }).catch(console.error);
+    } else {
+      const media = (track.file_url || track.url || '').toLowerCase().endsWith('.mp4') ? videoRef.current : audioRef.current;
+      if (media) {
+        media.load();
+        media.play().then(() => {
+          setIsPlaying(true);
+        }).catch(console.error);
+      }
     }
   };
 
@@ -332,10 +341,11 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
   };
 
   const handleSeek = (event, newValue) => {
-    if (audioRef.current && !isSyncing) {
-      audioRef.current.currentTime = newValue;
+    if (!isSyncing && audioRef.current) {
+      if (audioRef.current) {
+        audioRef.current.currentTime = newValue;
+      }
       setCurrentTime(newValue);
-      
       // If host, sync seek with all participants
       if (isHost) {
         socketService.hostSeek(newValue);
@@ -572,13 +582,25 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
 
   return (
     <Paper elevation={3} sx={{ p: 3 }}>
-      <audio
-        ref={audioRef}
-        src={currentTrack?.file_url || currentTrack?.url}
-        onEnded={handleNext}
-        crossOrigin="anonymous"
-      />
-      
+      {/* Media element: audio or video */}
+      {isCurrentTrackMp4 ? (
+        <video
+          ref={videoRef}
+          src={currentTrack?.file_url || currentTrack?.url}
+          onEnded={handleNext}
+          crossOrigin="anonymous"
+          style={{ width: '100%', maxHeight: 320, marginBottom: 16, background: '#000' }}
+          controls
+          poster={currentTrack?.cover_url}
+        />
+      ) : (
+        <audio
+          ref={audioRef}
+          src={currentTrack?.file_url || currentTrack?.url}
+          onEnded={handleNext}
+          crossOrigin="anonymous"
+        />
+      )}
       {/* Current Track Info */}
       {currentTrack && (
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -665,7 +687,7 @@ const RoomAudioPlayer = ({ room, isHost, onAddTrack, tracks = [] }) => {
           <Slider
             value={currentTime}
             max={duration || 0}
-            onChange={handleSeekLocal}
+            onChange={isHost ? handleSeek : handleSeekLocal}
             sx={{ flexGrow: 1, mx: 1 }}
           />
           <Typography variant="caption" sx={{ ml: 1, minWidth: '40px' }}>

@@ -38,6 +38,7 @@ import axios from 'axios';
 import { formatPlays } from '../utils/format';
 import { usePlayer } from '../contexts/PlayerContext';
 import AudioPlayer from '../components/AudioPlayer';
+import TrackCard from '../components/TrackCard';
 import useSyncTrackCounts from '../hooks/useSyncTrackCounts';
 
 const AIEnhancedSearch = () => {
@@ -208,35 +209,17 @@ const AIEnhancedSearch = () => {
             <Grid container spacing={2}>
               {categorized.exact.map((track) => (
                 <Grid item xs={12} key={track.id}>
-                  <Card sx={{ 
-                    bgcolor: '#1e1e1e',
-                    border: '2px solid #4caf50',
-                    '&:hover': { bgcolor: '#2a2a2a' }
-                  }}>
-                    <CardContent sx={{ py: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Chip 
-                          label={`${Math.round(track.relevanceScore * 100)}% match`}
-                          size="small"
-                          sx={{ bgcolor: '#4caf50', color: 'white' }}
-                        />
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" sx={{ color: 'white' }}>
-                            {track.title}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#ccc' }}>
-                            by {track.artist} • {track.genre}
-                          </Typography>
-                        </Box>
-                        <IconButton
-                          onClick={() => handlePlayTrack(track)}
-                          sx={{ color: '#4caf50' }}
-                        >
-                          <PlayArrow />
-                        </IconButton>
-                      </Box>
-                    </CardContent>
-                  </Card>
+                  <TrackCard
+                    track={track}
+                    onPlay={() => handlePlayTrack(track)}
+                    showActions={true}
+                  >
+                    <Chip 
+                      label={`${Math.round(track.relevanceScore * 100)}% match`}
+                      size="small"
+                      sx={{ bgcolor: '#4caf50', color: 'white', mb: 1 }}
+                    />
+                  </TrackCard>
                 </Grid>
               ))}
             </Grid>
@@ -253,36 +236,17 @@ const AIEnhancedSearch = () => {
             <Grid container spacing={2}>
               {categorized.high.slice(0, 10).map((track) => (
                 <Grid item xs={12} sm={6} key={track.id}>
-                  <Card sx={{ 
-                    bgcolor: '#1e1e1e',
-                    border: '1px solid #667eea',
-                    '&:hover': { bgcolor: '#2a2a2a' }
-                  }}>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Chip 
-                          label={`${Math.round(track.relevanceScore * 100)}% match`}
-                          size="small"
-                          sx={{ bgcolor: '#667eea', color: 'white' }}
-                        />
-                        <IconButton
-                          onClick={() => handlePlayTrack(track)}
-                          sx={{ color: '#667eea' }}
-                        >
-                          <PlayArrow />
-                        </IconButton>
-                      </Box>
-                      <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
-                        {track.title}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#ccc' }}>
-                        by {track.artist}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#888' }}>
-                        {track.genre} • {formatPlays(track.play_count || 0)}
-                      </Typography>
-                    </CardContent>
-                  </Card>
+                  <TrackCard
+                    track={track}
+                    onPlay={() => handlePlayTrack(track)}
+                    showActions={true}
+                  >
+                    <Chip 
+                      label={`${Math.round(track.relevanceScore * 100)}% match`}
+                      size="small"
+                      sx={{ bgcolor: '#667eea', color: 'white', mb: 1 }}
+                    />
+                  </TrackCard>
                 </Grid>
               ))}
             </Grid>
@@ -301,34 +265,18 @@ const AIEnhancedSearch = () => {
                 .slice(0, 8)
                 .map((track) => (
                 <Grid item xs={12} sm={6} md={4} lg={3} key={track.id}>
-                  <Card sx={{ 
-                    bgcolor: '#1e1e1e',
-                    '&:hover': { bgcolor: '#2a2a2a', transform: 'translateY(-2px)' },
-                    transition: 'all 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Typography variant="h6" sx={{ color: 'white', mb: 1, fontSize: '1rem' }}>
-                        {track.title}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#ccc', mb: 2 }}>
-                        {track.artist}
-                      </Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Chip 
-                          label={track.genre || 'Unknown'}
-                          size="small"
-                          variant="outlined"
-                          sx={{ color: '#ccc', borderColor: '#555' }}
-                        />
-                        <IconButton
-                          onClick={() => handlePlayTrack(track)}
-                          sx={{ color: '#ff9800' }}
-                        >
-                          <PlayArrow />
-                        </IconButton>
-                      </Box>
-                    </CardContent>
-                  </Card>
+                  <TrackCard
+                    track={track}
+                    onPlay={() => handlePlayTrack(track)}
+                    showActions={true}
+                  >
+                    <Chip 
+                      label={track.genre || 'Unknown'}
+                      size="small"
+                      variant="outlined"
+                      sx={{ color: '#ccc', borderColor: '#555', mb: 1 }}
+                    />
+                  </TrackCard>
                 </Grid>
               ))}
             </Grid>

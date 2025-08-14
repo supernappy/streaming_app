@@ -18,6 +18,8 @@ export const PlayerProvider = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
+  // Add recentlyPlayed state
+  const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [queue, setQueue] = useState([]);
@@ -26,10 +28,12 @@ export const PlayerProvider = ({ children }) => {
   const [repeatMode, setRepeatMode] = useState('off'); // 'off', 'all', 'one'
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   const soundRef = useRef(null);
   const intervalRef = useRef(null);
   const testAudioRef = useRef(null);
+
+  // Removed auto-play on refresh. Player will only start when a track is clicked.
 
   // Cleanup function to properly stop and dispose of audio resources
   const cleanupAudio = () => {
@@ -136,13 +140,25 @@ export const PlayerProvider = ({ children }) => {
     setError(null); // Clear any previous errors
 
     setIsLoading(true);
-    setCurrentTrack(track);
+    let fullTrack = track;
+    // If lyrics is missing, fetch full track details
+    if (!track.lyrics) {
+      try {
+        const res = await api.get(`/tracks/${track.id}`);
+        if (res.data && res.data.track) {
+          fullTrack = { ...track, ...res.data.track };
+        }
+      } catch (err) {
+        console.warn('Failed to fetch full track details for lyrics:', err);
+      }
+    }
+    setCurrentTrack(fullTrack);
     // Use provided trackListArg as queue if available, else use current queue
     const queueToUse = Array.isArray(trackListArg) && trackListArg.length > 0 ? trackListArg : queue;
     setQueue(queueToUse);
     setCurrentIndex(queueToUse.findIndex(t => t.id === track.id));
 
-    const audioUrl = track.hls_url || track.file_url;
+    const audioUrl = fullTrack.hls_url || fullTrack.file_url;
     console.log('Using audio URL:', audioUrl);
 
     // Validate URL
@@ -161,137 +177,10 @@ export const PlayerProvider = ({ children }) => {
       return;
     }
 
-    console.log('✅ Track is accessible, proceeding with audio setup...');
-
-    // Test direct HTML5 audio first for debugging
-    testAudioRef.current = new Audio();
-    testAudioRef.current.crossOrigin = 'anonymous';
-    testAudioRef.current.preload = 'metadata';
-    
-    testAudioRef.current.addEventListener('canplay', () => {
-      console.log('✅ HTML5 Audio can play this file');
-    });
-    
-    testAudioRef.current.addEventListener('loadedmetadata', () => {
-      console.log('✅ HTML5 Audio metadata loaded, duration:', testAudioRef.current.duration);
-    });
-    
-    testAudioRef.current.addEventListener('error', (e) => {
-      console.error('❌ HTML5 Audio error:', e);
-      console.error('Audio error code:', testAudioRef.current?.error?.code);
-      console.error('Audio error message:', testAudioRef.current?.error?.message);
-      
-      // Error codes: 1=ABORTED, 2=NETWORK, 3=DECODE, 4=SRC_NOT_SUPPORTED
-      const errorMessages = {
-        1: 'Audio loading was aborted',
-        2: 'Network error while loading audio',
-        3: 'Audio decoding failed',
-        4: 'Audio format not supported'
-      };
-      
-      const errorCode = testAudioRef.current?.error?.code;
-      const errorMsg = errorMessages[errorCode] || 'Unknown audio error';
-      console.error('Detailed error:', errorMsg);
-    });
-    
-    // Set source and load
-    testAudioRef.current.src = audioUrl;
-    testAudioRef.current.load();
-
-    // Create new Howl instance with better error handling
-    soundRef.current = new Howl({
-      src: [audioUrl],
-      html5: true, // Use HTML5 Audio for better compatibility
-      format: ['mp3', 'wav', 'mpeg'], // Support multiple formats
-      volume: volume,
-      preload: true,
-      cors: true, // Enable CORS
-      onload: () => {
-        console.log('✅ Howler: Audio loaded successfully');
-        console.log('Duration:', soundRef.current.duration());
-        setDuration(soundRef.current.duration());
-        setIsLoading(false);
-        setError(null);
-      },
-      onplay: () => {
-        console.log('✅ Howler: Audio started playing');
-        setIsPlaying(true);
-        setIsLoading(false);
-        setError(null);
-        startTimeTracking();
-        if (track && track.id) {
-          incrementPlayCount(track);
-        }
-      },
-      onpause: () => {
-        console.log('⏸️ Howler: Audio paused');
-        setIsPlaying(false);
-        clearInterval(intervalRef.current);
-      },
-      onend: () => {
-        console.log('🔚 Howler: Audio ended');
-        setIsPlaying(false);
-        setCurrentTime(0);
-        clearInterval(intervalRef.current);
-        handleTrackEnd();
-      },
-      onloaderror: (id, error) => {
-        console.error('❌ Howler: Audio load error:', error);
-        console.error('❌ Howler: Error ID:', id);
-        console.error('❌ Howler: Full error object:', error);
-        
-        // More specific error messages
-        let errorMsg = 'Failed to load audio file.';
-        if (typeof error === 'string' && error.includes('404')) {
-          errorMsg = 'Audio file not found (404). The track may have been moved or deleted.';
-        } else if (typeof error === 'string' && error.includes('CORS')) {
-          errorMsg = 'Cross-origin request blocked. Please contact support.';
-        } else if (typeof error === 'string' && error.includes('network')) {
-          errorMsg = 'Network error. Please check your connection and try again.';
-        }
-        
-        setError(errorMsg);
-        setIsLoading(false);
-        setIsPlaying(false);
-      },
-      onplayerror: (id, error) => {
-        console.error('❌ Howler: Audio play error:', error);
-        console.error('❌ Howler: Error ID:', id);
-        
-        let errorMsg = 'Failed to play audio.';
-        if (typeof error === 'string' && error.includes('NotAllowedError')) {
-          errorMsg = 'Playback blocked by browser. Please click play again to allow audio.';
-        } else if (typeof error === 'string' && error.includes('decode')) {
-          errorMsg = 'Audio file is corrupted or in an unsupported format.';
-        }
-        
-        setError(errorMsg);
-        setIsLoading(false);
-        setIsPlaying(false);
-      },
-      onerror: (error) => {
-        console.error('❌ Howler: General audio error:', error);
-        setError('An audio error occurred. Please try refreshing the page.');
-        setIsLoading(false);
-        setIsPlaying(false);
-      },
-    });
-
-    console.log('🔄 Howler instance created, attempting to play...');
-    try {
-      // Add a small delay to ensure the audio is properly loaded
-      setTimeout(() => {
-        if (soundRef.current && soundRef.current.state() === 'loaded') {
-          const playResult = soundRef.current.play();
-          console.log('Play result:', playResult);
-        }
-      }, 100);
-    } catch (error) {
-      console.error('❌ Play attempt failed:', error);
-      setError('Failed to start playback. Please try again.');
-      setIsLoading(false);
-      setIsPlaying(false);
-    }
+    setIsLoading(false);
+    setIsPlaying(true);
+    setCurrentTime(0);
+    setDuration(fullTrack.duration || 0);
   };
 
   const handleTrackEnd = () => {
@@ -438,6 +327,7 @@ export const PlayerProvider = ({ children }) => {
     isLoading,
     error,
     playTrack,
+    incrementPlayCount, // Expose incrementPlayCount to consumers
     togglePlayPause,
     stop,
     seek,
@@ -448,7 +338,9 @@ export const PlayerProvider = ({ children }) => {
     removeFromQueue,
     clearQueue,
     toggleShuffle,
-    setRepeat
+    setRepeat,
+    recentlyPlayed,
+    setRecentlyPlayed
   };
 
   return (

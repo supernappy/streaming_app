@@ -46,6 +46,22 @@ import {
   Palette,
   Visibility
 } from '@mui/icons-material';
+import { styled } from '@mui/material/styles';
+import Grow from '@mui/material/Grow';
+// Animated status badge for online/active
+const AnimatedBadge = styled(Badge)(({ theme, color }) => ({
+  '& .MuiBadge-badge': {
+    background: color || theme.palette.success.main,
+    color: color || theme.palette.success.main,
+    boxShadow: `0 0 8px 2px ${color || theme.palette.success.main}`,
+    animation: 'pulse 1.2s infinite',
+    '@keyframes pulse': {
+      '0%': { boxShadow: `0 0 0 0 ${color || theme.palette.success.main}` },
+      '70%': { boxShadow: `0 0 0 8px rgba(0,0,0,0)` },
+      '100%': { boxShadow: `0 0 0 0 ${color || theme.palette.success.main}` },
+    },
+  },
+}));
 import { useParams, useNavigate } from 'react-router-dom';
 import { roomsAPI, tracksAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -419,14 +435,18 @@ const Room = () => {
       <RoomThemes theme={currentTheme} onThemeChange={handleThemeChange} loading={themeLoading} />
       {/* Enhanced Room Header */}
       <AppBar 
-        position="static" 
+        position="sticky" 
         sx={{ 
-          background: 'rgba(0, 0, 0, 0.3)',
-          backdropFilter: 'blur(10px)',
-          boxShadow: 'none'
+          background: 'rgba(255,255,255,0.20)',
+          backdropFilter: 'blur(18px) saturate(180%)',
+          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.10)',
+          borderBottom: '1px solid rgba(255,255,255,0.18)',
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
+          zIndex: 10
         }}
       >
-        <Toolbar>
+  <Toolbar sx={{ minHeight: 72, px: 2 }}>
           <IconButton 
             onClick={() => navigate('/rooms')} 
             sx={{ mr: 2, color: 'white' }}
@@ -597,12 +617,22 @@ const Room = () => {
                     {roomTracks.map((track) => (
                       <Grid item xs={12} sm={6} md={4} key={track.id}>
                         <Tooltip title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                          <Paper sx={{ p: 2, bgcolor: '#23272f', color: 'white' }}>
-                            <Typography variant="subtitle1" noWrap>{track.title}</Typography>
-                            <Typography variant="body2" color="#aaa" noWrap>{track.artist}</Typography>
-                            <Typography variant="caption" color="#aaa">
-                              Plays: {track.play_count || 0}
-                            </Typography>
+                          <Paper sx={{ p: 2, bgcolor: '#23272f', color: 'white', display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Avatar
+                              src={track.cover_url || '/default_cover.png'}
+                              alt={track.title}
+                              sx={{ width: 56, height: 56, mr: 2, bgcolor: 'grey.800', flexShrink: 0 }}
+                              variant="rounded"
+                            >
+                              <MusicNote />
+                            </Avatar>
+                            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                              <Typography variant="subtitle1" noWrap>{track.title}</Typography>
+                              <Typography variant="body2" color="#aaa" noWrap>{track.artist}</Typography>
+                              <Typography variant="caption" color="#aaa">
+                                Plays: {track.play_count || 0}
+                              </Typography>
+                            </Box>
                           </Paper>
                         </Tooltip>
                       </Grid>
@@ -633,12 +663,22 @@ const Room = () => {
                   {recentlyPlayed.slice(0, 8).map((track) => (
                     <Grid item xs={12} sm={6} md={3} key={track.id}>
                       <Tooltip title={track.play_count === 1 ? 'Played once' : `Played ${track.play_count || 0} times`} arrow>
-                        <Paper sx={{ bgcolor: '#23272f', color: 'white', p: 2 }}>
-                          <Typography variant="subtitle1" noWrap>{track.title}</Typography>
-                          <Typography variant="body2" color="#aaa" noWrap>{track.artist}</Typography>
-                          <Typography variant="caption" color="#aaa">
-                            Plays: {track.play_count || 0}
-                          </Typography>
+                        <Paper sx={{ bgcolor: '#23272f', color: 'white', p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar
+                            src={track.cover_url || '/default_cover.png'}
+                            alt={track.title}
+                            sx={{ width: 48, height: 48, mr: 2, bgcolor: 'grey.800', flexShrink: 0 }}
+                            variant="rounded"
+                          >
+                            <MusicNote />
+                          </Avatar>
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography variant="subtitle1" noWrap>{track.title}</Typography>
+                            <Typography variant="body2" color="#aaa" noWrap>{track.artist}</Typography>
+                            <Typography variant="caption" color="#aaa">
+                              Plays: {track.play_count || 0}
+                            </Typography>
+                          </Box>
                         </Paper>
                       </Tooltip>
                     </Grid>
@@ -805,38 +845,53 @@ const Room = () => {
               
               <List>
                 {participants.map((participant, index) => (
-                  <ListItem key={participant.id} divider={index < participants.length - 1}>
-                    <ListItemAvatar>
-                      <Avatar src={participant.avatar_url}>
-                        {participant.username?.charAt(0).toUpperCase()}
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography sx={{ color: 'white' }}>
-                            {participant.display_name || participant.username}
+                  <Grow in timeout={400 + index * 80} key={participant.id}>
+                    <ListItem divider={index < participants.length - 1} sx={{ transition: 'background 0.3s' }}>
+                      <ListItemAvatar>
+                        <AnimatedBadge
+                          overlap="circular"
+                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                          variant="dot"
+                          color={participant.is_muted ? 'warning' : participant.hand_raised ? 'secondary' : 'success'}
+                        >
+                          <Avatar src={participant.avatar_url}>
+                            {participant.username?.charAt(0).toUpperCase()}
+                          </Avatar>
+                        </AnimatedBadge>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ color: 'white' }}>
+                              {participant.display_name || participant.username}
+                            </Typography>
+                            {participant.id === room?.host_id && (
+                              <Chip label="Host" size="small" color="primary" />
+                            )}
+                            {participant.role === 'speaker' && (
+                              <Chip label="Speaker" size="small" variant="outlined" />
+                            )}
+                            {participant.is_muted && (
+                              <Chip label="Muted" size="small" color="warning" sx={{ ml: 1, animation: 'shake 0.7s infinite alternate' }} />
+                            )}
+                            {participant.hand_raised && (
+                              <Chip label="Hand Raised" size="small" color="secondary" sx={{ ml: 1, animation: 'bounce 1s infinite alternate' }} />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                            {participant.is_muted ? 'Muted' : 'Speaking'} •
+                            {participant.hand_raised ? ' Hand raised' : ' Listening'}
                           </Typography>
-                          {participant.id === room?.host_id && (
-                            <Chip label="Host" size="small" color="primary" />
-                          )}
-                          {participant.role === 'speaker' && (
-                            <Chip label="Speaker" size="small" variant="outlined" />
-                          )}
-                        </Box>
-                      }
-                      secondary={
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-                          {participant.is_muted ? 'Muted' : 'Speaking'} • 
-                          {participant.hand_raised ? ' Hand raised' : ' Listening'}
-                        </Typography>
-                      }
-                    />
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {participant.is_muted ? <VolumeOff color="disabled" /> : <VolumeUp color="primary" />}
-                      {participant.hand_raised && <PanTool color="warning" />}
-                    </Box>
-                  </ListItem>
+                        }
+                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {participant.is_muted ? <VolumeOff color="disabled" /> : <VolumeUp color="primary" />}
+                        {participant.hand_raised && <PanTool color="warning" />}
+                      </Box>
+                    </ListItem>
+                  </Grow>
                 ))}
                 
                 {participants.length === 0 && (

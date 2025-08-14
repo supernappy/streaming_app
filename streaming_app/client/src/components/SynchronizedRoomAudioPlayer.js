@@ -25,6 +25,8 @@ import {
 import { useSocket } from '../contexts/SocketContext_enhanced';
 
 const SynchronizedRoomAudioPlayer = ({ room, isHost, tracks = [], onRemoveTrack }) => {
+const SynchronizedRoomAudioPlayer = ({ room, isHost, tracks = [], onRemoveTrack }) => {
+  const [showPlayer, setShowPlayer] = useState(true);
   console.log('🎵 RENDER: SynchronizedRoomAudioPlayer', { 
     room: room?.id, 
     isHost, 
@@ -447,6 +449,8 @@ const SynchronizedRoomAudioPlayer = ({ room, isHost, tracks = [], onRemoveTrack 
   };
 
   // SINGLE RETURN STATEMENT - CONDITIONAL RENDERING
+  if (!showPlayer) return null;
+
   return (
     <Paper elevation={3} sx={{ p: 3 }}>
       {/* Conditional Content Based on Component State */}
